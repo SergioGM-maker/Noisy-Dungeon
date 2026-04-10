@@ -22,7 +22,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,44 +38,46 @@ import com.example.ttrpg_sound.ui.components.AddPanelDialog
 import com.example.ttrpg_sound.ui.components.SoundButtonCard
 import com.example.ttrpg_sound.ui.viewmodel.SoundPanelViewModel
 
-/**
- * Pantalla principal de la aplicación.
- *
- * Es el único Composable que conoce el ViewModel. Recoge el estado
- * y lo pasa hacia abajo a componentes "tontos" (SoundButtonCard, diálogos).
- * Este patrón se llama "state hoisting" (elevar el estado).
- *
- * Estructura visual:
- * ┌─────────────────────────────┐
- * │  TopAppBar  [+Panel]        │
- * ├─────────────────────────────┤
- * │  Tab1 │ Tab2 │ Tab3 │ ...   │  ← ScrollableTabRow
- * ├─────────────────────────────┤
- * │                             │
- * │  [Btn] [Btn] [Btn]          │  ← LazyVerticalGrid
- * │  [Btn] [Btn]                │
- * │                             │
- * └──────────────────────── [+] ┘  ← FAB añadir botón
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    // 'viewModel()' obtiene (o crea) el ViewModel con el ciclo de vida correcto.
-    // Al pasarlo como parámetro con valor por defecto, facilitamos los tests:
-    // en un test podemos inyectar un ViewModel falso.
-    viewModel: SoundPanelViewModel = viewModel()
-) {
-    // collectAsStateWithLifecycle: solo recolecta el Flow cuando la UI
-    // está en primer plano. Más eficiente que collectAsState().
-    val panels by viewModel.panels.collectAsStateWithLifecycle()
-    val currentPanelIndex by viewModel.currentPanelIndex.collectAsStateWithLifecycle()
-    val currentPanel by viewModel.currentPanel.collectAsStateWithLifecycle()
+fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
 
-    // Estado local de la UI: si los diálogos están visibles.
-    // Esto NO sube al ViewModel porque es puramente visual — no afecta
-    // a los datos del modelo.
+    // Un único collect: panels e index llegan siempre juntos, sin estado intermedio.
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val panels            = uiState.panels
+    val currentPanelIndex = uiState.currentPanelIndex
+    val currentPanel      = uiState.currentPanel
+
+    // -------------------------------------------------------------------------
+    // Navegación diferida al nuevo panel
+    //
+    // Problema: ScrollableTabRow mide los tabs en la Fase 1 del frame y coloca
+    // el indicador en la Fase 2. Si cambiamos selectedTabIndex al nuevo panel
+    // en el MISMO frame en que lo añadimos, la Fase 2 intenta acceder a
+    // tabPositions[nuevoIndex] antes de que la Fase 1 lo haya medido → CRASH.
+    //
+    // Solución: LaunchedEffect(panels.size) se ejecuta DESPUÉS de que el frame
+    // completo ha sido procesado (composición + layout + draw). En ese punto,
+    // tabPositions ya incluye el nuevo tab y la navegación es segura.
+    //
+    // prevPanelCount se inicializa con el tamaño actual para que la navegación
+    // solo se active cuando el usuario añade un panel (no en la composición
+    // inicial, donde panels.size == prevPanelCount).
+    // -------------------------------------------------------------------------
+    var prevPanelCount by remember { mutableIntStateOf(panels.size) }
+
+    LaunchedEffect(panels.size) {
+        if (panels.size > prevPanelCount) {
+            // El nuevo panel ya ha sido compuesto y medido en el frame anterior.
+            // Ahora es seguro navegar a él.
+            viewModel.selectPanel(panels.lastIndex)
+        }
+        prevPanelCount = panels.size
+    }
+
+    // Estado local de la UI: visibilidad de los diálogos.
     var showAddButtonDialog by remember { mutableStateOf(false) }
-    var showAddPanelDialog by remember { mutableStateOf(false) }
+    var showAddPanelDialog  by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -81,22 +85,15 @@ fun HomeScreen(
                 title = { Text("TTRPG Sound") },
                 actions = {
                     IconButton(onClick = { showAddPanelDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Añadir panel"
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "Añadir panel")
                     }
                 }
             )
         },
         floatingActionButton = {
-            // Solo mostramos el FAB si hay al menos un panel creado
             if (panels.isNotEmpty()) {
                 FloatingActionButton(onClick = { showAddButtonDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Añadir botón de sonido"
-                    )
+                    Icon(Icons.Default.Add, contentDescription = "Añadir botón de sonido")
                 }
             }
         }
@@ -106,25 +103,21 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-
-            // --- Navegación entre paneles ---
             if (panels.isNotEmpty()) {
                 ScrollableTabRow(selectedTabIndex = currentPanelIndex) {
                     panels.forEachIndexed { index, panel ->
                         Tab(
                             selected = index == currentPanelIndex,
-                            onClick = { viewModel.selectPanel(index) },
-                            text = { Text(panel.name) }
+                            onClick  = { viewModel.selectPanel(index) },
+                            text     = { Text(panel.name) }
                         )
                     }
                 }
             }
 
-            // --- Contenido del panel actual ---
             val buttons = currentPanel?.buttons.orEmpty()
 
             if (buttons.isEmpty()) {
-                // Estado vacío: mensaje de ayuda contextual
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -140,26 +133,20 @@ fun HomeScreen(
                     )
                 }
             } else {
-                // LazyVerticalGrid: renderiza solo los botones visibles en pantalla.
-                // GridCells.Adaptive: calcula automáticamente cuántas columnas caben
-                // según el ancho disponible. Funciona bien en móvil y tablet.
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 110.dp),
                     contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement   = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(
-                        items = buttons,
-                        key = { it.id } // 'key' permite a Compose animar y reusar items eficientemente
-                    ) { button ->
+                    items(items = buttons, key = { it.id }) { button ->
                         SoundButtonCard(
-                            button = button,
-                            onClick = { viewModel.playSound(button) },
+                            button   = button,
+                            onClick  = { viewModel.playSound(button) },
                             onDelete = {
-                                currentPanel?.let { panel ->
-                                    viewModel.removeButton(panel.id, button.id)
+                                currentPanel?.let {
+                                    viewModel.removeButton(it.id, button.id)
                                 }
                             }
                         )
@@ -168,9 +155,6 @@ fun HomeScreen(
             }
         }
     }
-
-    // --- Diálogos ---
-    // Se renderizan fuera del Scaffold para solaparse correctamente sobre todo
 
     if (showAddButtonDialog) {
         currentPanel?.let { panel ->
