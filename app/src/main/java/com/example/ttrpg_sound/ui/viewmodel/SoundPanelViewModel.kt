@@ -8,12 +8,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/**
- * Estado completo de la pantalla principal.
- *
- * Un único objeto atómico → Compose nunca ve panels e index desincronizados.
- * currentPanel se deriva aquí para que siempre sea consistente.
- */
+/** Máximo de caracteres permitido en el nombre de un panel. */
+const val MAX_PANEL_NAME_LENGTH = 20
+
 data class UiState(
     val panels: List<SoundPanel> = listOf(
         SoundPanel(name = "General"),
@@ -39,27 +36,15 @@ class SoundPanelViewModel : ViewModel() {
 
     /**
      * Añade un panel SIN cambiar el índice seleccionado.
-     *
-     * ¿Por qué no navegamos aquí?
-     * ScrollableTabRow usa SubcomposeLayout internamente, que tiene dos fases:
-     *   Fase 1: compone y MIDE los tabs → rellena tabPositions[]
-     *   Fase 2: coloca el indicador en tabPositions[selectedTabIndex]
-     *
-     * Si cambiamos panels + index en el mismo frame, la Fase 2 intenta leer
-     * tabPositions[nuevoIndex] antes de que la Fase 1 lo haya medido → CRASH.
-     *
-     * La navegación ocurre en HomeScreen mediante LaunchedEffect(panels.size),
-     * que se ejecuta DESPUÉS de que el frame ha sido completamente procesado
-     * (composición + layout + draw). En ese punto, tabPositions ya incluye
-     * el nuevo tab y la navegación es segura.
+     * El nombre se trunca a [MAX_PANEL_NAME_LENGTH] como segunda línea de defensa
+     * (la primera es la UI, que ya limita la entrada del usuario).
      */
     fun addPanel(name: String) {
-        val trimmed = name.trim()
+        val trimmed = name.trim().take(MAX_PANEL_NAME_LENGTH)
         if (trimmed.isBlank()) return
 
         _uiState.update { state ->
             state.copy(panels = state.panels + SoundPanel(name = trimmed))
-            // currentPanelIndex se deja intacto deliberadamente.
         }
     }
 
