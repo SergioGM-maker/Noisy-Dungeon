@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,18 +28,16 @@ import androidx.compose.ui.unit.dp
 import com.example.ttrpg_sound.data.model.SoundButton
 
 /**
- * Tarjeta cuadrada que representa un botón de sonido.
+ * Tarjeta de botón de sonido.
  *
- * - Pulsación corta → reproduce el sonido ([onClick])
- * - Pulsación larga → muestra un menú contextual con opciones (eliminar, etc.)
+ * Cambios respecto a la versión anterior:
+ * - Menú contextual ampliado con "Cambiar sonido" → llama a [onChangeAudio].
+ * - Indicador visual: un icono de nota musical en la esquina superior derecha
+ *   cuando el botón ya tiene un archivo de audio asignado (soundUri != null).
+ *   Así el usuario sabe de un vistazo qué botones tienen sonido y cuáles no.
  *
- * Este componente es "tonto" (dumb component / stateless): no sabe nada
- * de ViewModels ni de lógica. Solo recibe datos y callbacks.
- * Así es más fácil de reutilizar y de testear en preview.
- *
- * @param button    El modelo de datos del botón.
- * @param onClick   Llamado al pulsar (debería reproducir el sonido).
- * @param onDelete  Llamado al seleccionar "Eliminar" en el menú contextual.
+ * @param onChangeAudio  Llamado cuando el usuario pulsa "Cambiar sonido".
+ *                       HomeScreen lanzará el picker al recibir este callback.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -43,17 +45,16 @@ fun SoundButtonCard(
     button: SoundButton,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onChangeAudio: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Estado local: si el menú contextual está visible.
-    // 'remember' mantiene este valor entre recomposiciones de este componente.
     var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = modifier
-            .aspectRatio(1f) // Siempre cuadrado, independientemente del tamaño
+            .aspectRatio(1f)
             .combinedClickable(
-                onClick = onClick,
+                onClick     = onClick,
                 onLongClick = { menuExpanded = true }
             ),
         colors = CardDefaults.cardColors(
@@ -67,26 +68,44 @@ fun SoundButtonCard(
                 .fillMaxSize()
                 .padding(8.dp)
         ) {
+            // Nombre del botón, centrado
             Text(
-                text = button.name,
-                style = MaterialTheme.typography.labelLarge,
+                text      = button.name,
+                style     = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color     = MaterialTheme.colorScheme.onPrimaryContainer
             )
 
-            // El DropdownMenu se ancla al Box que lo contiene
+            // Indicador visual: el botón tiene audio asignado
+            if (button.soundUri != null) {
+                Icon(
+                    imageVector        = Icons.Default.Notifications,
+                    contentDescription = "Tiene audio asignado",
+                    tint               = MaterialTheme.colorScheme.primary,
+                    modifier           = Modifier
+                        .size(14.dp)
+                        .align(Alignment.TopEnd)
+                )
+            }
+
             DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false }
+                expanded          = menuExpanded,
+                onDismissRequest  = { menuExpanded = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Eliminar") },
+                    text    = { Text("Cambiar sonido") },
+                    onClick = {
+                        menuExpanded = false
+                        onChangeAudio()
+                    }
+                )
+                DropdownMenuItem(
+                    text    = { Text("Eliminar") },
                     onClick = {
                         menuExpanded = false
                         onDelete()
                     }
                 )
-                // Aquí añadiremos en el futuro: "Renombrar", "Cambiar sonido", etc.
             }
         }
     }
