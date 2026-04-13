@@ -7,15 +7,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
@@ -50,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ttrpg_sound.data.model.SoundPanel
 import com.example.ttrpg_sound.ui.components.AddButtonDialog
 import com.example.ttrpg_sound.ui.components.AddPanelDialog
+import com.example.ttrpg_sound.ui.components.ConfirmDeletePanelDialog
 import com.example.ttrpg_sound.ui.components.SoundButtonCard
 import com.example.ttrpg_sound.ui.viewmodel.SoundPanelViewModel
 import kotlinx.coroutines.launch
@@ -93,6 +98,9 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                     viewModel.selectPanel(index)
                     scope.launch { drawerState.close() }
                 },
+                onPanelDeleted    = { panelId ->
+                    viewModel.deletePanel(panelId)
+                },
                 onAddPanelClicked = {
                     scope.launch { drawerState.close() }
                     showAddPanelDialog = true
@@ -113,20 +121,12 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
             },
             floatingActionButton = {
                 if (panels.isNotEmpty()) {
-                    // Los dos FABs se apilan verticalmente en una Column.
-                    // Arrangement.spacedBy mantiene una separación consistente
-                    // entre ellos sin necesidad de padding manual.
                     Column(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // FAB de borrado — cambia de color según el modo activo.
-                        // containerColor controla el fondo del FAB.
-                        // Cuando isDeleteMode es true usamos errorContainer
-                        // (rojo del tema) para señalar visualmente que estamos
-                        // en un modo destructivo.
                         FloatingActionButton(
-                            onClick = { viewModel.toggleDeleteMode() },
+                            onClick        = { viewModel.toggleDeleteMode() },
                             containerColor = if (isDeleteMode) {
                                 MaterialTheme.colorScheme.errorContainer
                             } else {
@@ -137,39 +137,27 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                                 imageVector        = Icons.Default.Delete,
                                 contentDescription = if (isDeleteMode) "Salir del modo borrado"
                                                      else "Activar modo borrado",
-                                tint = if (isDeleteMode) {
-                                    MaterialTheme.colorScheme.onErrorContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
+                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
+                                       else MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        // FAB de añadir — desactivado en modo borrado para
-                        // evitar que el usuario cree y borre al mismo tiempo.
                         FloatingActionButton(
-                            onClick = { if (!isDeleteMode) showAddButtonDialog = true },
-                            containerColor = if (isDeleteMode) {
-                                MaterialTheme.colorScheme.surfaceVariant  // apagado
-                            } else {
-                                FloatingActionButtonDefaults.containerColor
-                            }
+                            onClick        = { if (!isDeleteMode) showAddButtonDialog = true },
+                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.surfaceVariant
+                                            else FloatingActionButtonDefaults.containerColor
                         ) {
                             Icon(
                                 imageVector        = Icons.Default.Add,
                                 contentDescription = "Añadir botón de sonido",
-                                tint = if (isDeleteMode) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
+                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
+                                       else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
             }
         ) { innerPadding ->
-
             val buttons = currentPanel?.buttons.orEmpty()
 
             if (buttons.isEmpty()) {
@@ -198,9 +186,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                             isDeleteMode  = isDeleteMode,
                             onClick       = { viewModel.playSound(button) },
                             onDelete      = {
-                                currentPanel?.let {
-                                    viewModel.removeButton(it.id, button.id)
-                                }
+                                currentPanel?.let { viewModel.removeButton(it.id, button.id) }
                             },
                             onChangeAudio = { viewModel.requestAudioPicker(button.id) }
                         )
@@ -233,13 +219,29 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     }
 }
 
+/**
+ * Contenido del drawer.
+ *
+ * Cada entrada tiene una X en el extremo derecho. Al pulsarla, se guarda
+ * el panel candidato a borrar en [panelToDelete]. Esto muestra el diálogo
+ * de confirmación. El diálogo vive aquí — dentro del drawer — para que
+ * se superponga correctamente sobre él.
+ *
+ * @param onPanelDeleted  Callback con el id del panel confirmado para borrar.
+ */
 @Composable
 private fun PanelDrawerContent(
     panels:            List<SoundPanel>,
     currentPanelIndex: Int,
     onPanelSelected:   (Int) -> Unit,
+    onPanelDeleted:    (String) -> Unit,
     onAddPanelClicked: () -> Unit
 ) {
+    // Panel candidato a borrar. Cuando no es null, se muestra el diálogo.
+    // Es estado local del drawer: no necesita subir al ViewModel porque
+    // es puramente visual (solo controla qué diálogo está abierto).
+    var panelToDelete by remember { mutableStateOf<SoundPanel?>(null) }
+
     ModalDrawerSheet {
         Spacer(Modifier.height(16.dp))
         Text(
@@ -252,12 +254,35 @@ private fun PanelDrawerContent(
         Spacer(Modifier.height(8.dp))
 
         panels.forEachIndexed { index, panel ->
-            NavigationDrawerItem(
-                label    = { Text(panel.name) },
-                selected = index == currentPanelIndex,
-                onClick  = { onPanelSelected(index) },
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-            )
+            // NavigationDrawerItem no tiene soporte nativo para un trailing icon
+            // interactivo, así que lo construimos con un Row: el ítem ocupa
+            // todo el ancho menos el espacio de la X, y la X está al final.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .padding(NavigationDrawerItemDefaults.ItemPadding)
+            ) {
+                NavigationDrawerItem(
+                    label    = { Text(panel.name) },
+                    selected = index == currentPanelIndex,
+                    onClick  = { onPanelSelected(index) },
+                    modifier = Modifier.weight(1f)  // ocupa el espacio disponible
+                )
+
+                // X de borrado — fuera del NavigationDrawerItem para que
+                // su área táctil no interfiera con la selección del panel
+                IconButton(
+                    onClick  = { panelToDelete = panel },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.Close,
+                        contentDescription = "Borrar panel ${panel.name}",
+                        tint               = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -270,6 +295,18 @@ private fun PanelDrawerContent(
             onClick  = onAddPanelClicked,
             icon     = { Icon(Icons.Default.Add, contentDescription = null) },
             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
+    }
+
+    // Diálogo de confirmación — se renderiza cuando panelToDelete no es null
+    panelToDelete?.let { panel ->
+        ConfirmDeletePanelDialog(
+            panelName = panel.name,
+            onConfirm = {
+                onPanelDeleted(panel.id)
+                panelToDelete = null
+            },
+            onDismiss = { panelToDelete = null }
         )
     }
 }

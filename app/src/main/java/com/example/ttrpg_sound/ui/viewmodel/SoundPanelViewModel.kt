@@ -25,15 +25,6 @@ data class UiState(
     val panels: List<SoundPanel> = emptyList(),
     val currentPanelIndex: Int = 0,
     val pendingAudioButtonId: String? = null,
-    /**
-     * Controla si la UI está en modo borrado.
-     *
-     * Vive en UiState (no como estado local en HomeScreen) por dos razones:
-     *  1. El ViewModel necesita conocerlo para gestionar el unload de SoundPool
-     *     en el momento exacto del borrado.
-     *  2. Si en el futuro añadimos otras pantallas, el modo borrado podría
-     *     afectarlas también sin duplicar estado.
-     */
     val isDeleteMode: Boolean = false
 ) {
     val currentPanel: SoundPanel?
@@ -57,7 +48,7 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         )
         .build()
 
-    private val soundCache = mutableMapOf<String, Int>()
+    private val soundCache  = mutableMapOf<String, Int>()
     private val pendingPlay = mutableMapOf<Int, String>()
 
     init {
@@ -97,22 +88,13 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     // -------------------------------------------------------------------------
-    // Modo borrado
+    // Modo borrado de botones
     // -------------------------------------------------------------------------
 
-    /**
-     * Alterna el modo borrado.
-     * Si se desactiva mientras el picker de audio estaba pendiente,
-     * lo cancelamos para no dejar estado sucio.
-     */
     fun toggleDeleteMode() {
         _isDeleteMode.update { current ->
-            val entering = !current
-            if (!entering) {
-                // Al salir del modo borrado, cancelar cualquier picker pendiente
-                _pendingAudioButtonId.value = null
-            }
-            entering
+            if (current) _pendingAudioButtonId.value = null
+            !current
         }
     }
 
@@ -134,6 +116,41 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /**
+     * Borra un panel completo y libera todos sus soundIds de SoundPool.
+     *
+     * El orden importa:
+     *  1. Recorremos los botones del panel y hacemos unload de cada soundId
+     *     que esté en caché — ANTES de borrar de Room, para asegurarnos de
+     *     que aún tenemos la lista de botones disponible.
+     *  2. Borramos de Room. El CASCADE de la ForeignKey elimina los botones
+     *     automáticamente en la BD.
+     *  3. Si el panel borrado era el activo, retrocedemos el índice para que
+     *     no apunte a una posición inexistente.
+     */
+    fun deletePanel(panelId: String) {
+        viewModelScope.launch {
+            val panel = uiState.value.panels.find { it.id == panelId } ?: return@launch
+
+            // Paso 1: liberar todos los soundIds del panel de SoundPool
+            panel.buttons.forEach { button ->
+                soundCache.remove(button.id)?.let { soundId ->
+                    soundPool.unload(soundId)
+                }
+            }
+
+            // Paso 2: borrar de Room (CASCADE elimina los botones)
+            val position = uiState.value.panels.indexOf(panel)
+            repository.deletePanel(panel, position)
+
+            // Paso 3: ajustar el índice si era el panel activo o el último
+            val currentIndex = _currentPanelIndex.value
+            if (currentIndex >= position) {
+                _currentPanelIndex.value = (currentIndex - 1).coerceAtLeast(0)
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Botones
     // -------------------------------------------------------------------------
@@ -149,15 +166,8 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /**
-     * Elimina un botón y libera su soundId de SoundPool.
-     * La liberación debe ocurrir antes del borrado en BD para garantizar
-     * que el soundId que liberamos es válido.
-     */
     fun removeButton(panelId: String, buttonId: String) {
-        soundCache.remove(buttonId)?.let { soundId ->
-            soundPool.unload(soundId)
-        }
+        soundCache.remove(buttonId)?.let { soundId -> soundPool.unload(soundId) }
         viewModelScope.launch {
             val panel  = uiState.value.panels.find { it.id == panelId } ?: return@launch
             val button = panel.buttons.find { it.id == buttonId }        ?: return@launch
@@ -171,13 +181,11 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
 
     fun playSound(button: SoundButton) {
         val uriString = button.soundUri ?: return
-
         val cachedSoundId = soundCache[button.id]
         if (cachedSoundId != null) {
             soundPool.play(cachedSoundId, 1f, 1f, 0, 0, 1f)
             return
         }
-
         val uri = Uri.parse(uriString)
         try {
             val pfd     = getApplication<Application>().contentResolver
@@ -201,15 +209,10 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     fun onAudioFileSelected(uri: Uri) {
         val buttonId = _pendingAudioButtonId.value ?: return
         _pendingAudioButtonId.value = null
-
         getApplication<Application>().contentResolver.takePersistableUriPermission(
             uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
         )
-
-        soundCache.remove(buttonId)?.let { oldSoundId ->
-            soundPool.unload(oldSoundId)
-        }
-
+        soundCache.remove(buttonId)?.let { soundPool.unload(it) }
         viewModelScope.launch {
             val panel  = uiState.value.panels
                 .find { p -> p.buttons.any { it.id == buttonId } } ?: return@launch
