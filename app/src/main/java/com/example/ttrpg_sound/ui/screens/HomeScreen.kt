@@ -16,10 +16,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +62,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     val panels            = uiState.panels
     val currentPanelIndex = uiState.currentPanelIndex
     val currentPanel      = uiState.currentPanel
+    val isDeleteMode      = uiState.isDeleteMode
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope       = rememberCoroutineScope()
@@ -67,14 +70,6 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     var showAddButtonDialog by remember { mutableStateOf(false) }
     var showAddPanelDialog  by remember { mutableStateOf(false) }
 
-    // -------------------------------------------------------------------------
-    // Picker de archivos de audio
-    //
-    // Se declara aquí arriba, fuera de cualquier lambda o bloque condicional.
-    // La Activity Result API exige que el launcher se registre en el momento
-    // de la composición — si se registrara dentro de un onClick o un if,
-    // Android no podría enlazarlo correctamente con el ciclo de vida.
-    // -------------------------------------------------------------------------
     val audioPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -82,11 +77,6 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
         else             viewModel.onAudioPickerCancelled()
     }
 
-    // Cuando addButton() termina de insertar en Room, pone pendingAudioButtonId
-    // con el ID del nuevo botón. Este LaunchedEffect lo detecta y abre el picker.
-    //
-    // También se dispara cuando el usuario pulsa "Cambiar sonido" en el menú
-    // contextual — el comportamiento es idéntico en ambos casos.
     LaunchedEffect(uiState.pendingAudioButtonId) {
         if (uiState.pendingAudioButtonId != null) {
             audioPickerLauncher.launch(arrayOf("audio/*"))
@@ -123,8 +113,58 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
             },
             floatingActionButton = {
                 if (panels.isNotEmpty()) {
-                    FloatingActionButton(onClick = { showAddButtonDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Añadir botón de sonido")
+                    // Los dos FABs se apilan verticalmente en una Column.
+                    // Arrangement.spacedBy mantiene una separación consistente
+                    // entre ellos sin necesidad de padding manual.
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // FAB de borrado — cambia de color según el modo activo.
+                        // containerColor controla el fondo del FAB.
+                        // Cuando isDeleteMode es true usamos errorContainer
+                        // (rojo del tema) para señalar visualmente que estamos
+                        // en un modo destructivo.
+                        FloatingActionButton(
+                            onClick = { viewModel.toggleDeleteMode() },
+                            containerColor = if (isDeleteMode) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                FloatingActionButtonDefaults.containerColor
+                            }
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.Delete,
+                                contentDescription = if (isDeleteMode) "Salir del modo borrado"
+                                                     else "Activar modo borrado",
+                                tint = if (isDeleteMode) {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+
+                        // FAB de añadir — desactivado en modo borrado para
+                        // evitar que el usuario cree y borre al mismo tiempo.
+                        FloatingActionButton(
+                            onClick = { if (!isDeleteMode) showAddButtonDialog = true },
+                            containerColor = if (isDeleteMode) {
+                                MaterialTheme.colorScheme.surfaceVariant  // apagado
+                            } else {
+                                FloatingActionButtonDefaults.containerColor
+                            }
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.Add,
+                                contentDescription = "Añadir botón de sonido",
+                                tint = if (isDeleteMode) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -155,6 +195,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                     items(items = buttons, key = { it.id }) { button ->
                         SoundButtonCard(
                             button        = button,
+                            isDeleteMode  = isDeleteMode,
                             onClick       = { viewModel.playSound(button) },
                             onDelete      = {
                                 currentPanel?.let {
@@ -169,21 +210,12 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Diálogos
-    // -------------------------------------------------------------------------
-
     if (showAddButtonDialog) {
         currentPanel?.let { panel ->
             AddButtonDialog(
                 onConfirm = { name ->
-                    // addButton() crea el botón Y dispara el picker automáticamente
                     viewModel.addButton(panel.id, name)
                     showAddButtonDialog = false
-                    // No cerramos el diálogo y luego abrimos el picker en cadena:
-                    // addButton() escribe en Room (suspend), y solo cuando termina
-                    // pone pendingAudioButtonId. LaunchedEffect lo detecta y abre
-                    // el picker en el frame siguiente. El timing es automático.
                 },
                 onDismiss = { showAddButtonDialog = false }
             )
