@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -94,13 +95,12 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
             PanelDrawerContent(
                 panels            = panels,
                 currentPanelIndex = currentPanelIndex,
+                drawerState       = drawerState,   // ← para detectar el cierre
                 onPanelSelected   = { index ->
                     viewModel.selectPanel(index)
                     scope.launch { drawerState.close() }
                 },
-                onPanelDeleted    = { panelId ->
-                    viewModel.deletePanel(panelId)
-                },
+                onPanelDeleted    = { panelId -> viewModel.deletePanel(panelId) },
                 onAddPanelClicked = {
                     scope.launch { drawerState.close() }
                     showAddPanelDialog = true
@@ -127,11 +127,8 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                     ) {
                         FloatingActionButton(
                             onClick        = { viewModel.toggleDeleteMode() },
-                            containerColor = if (isDeleteMode) {
-                                MaterialTheme.colorScheme.errorContainer
-                            } else {
-                                FloatingActionButtonDefaults.containerColor
-                            }
+                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.errorContainer
+                                            else FloatingActionButtonDefaults.containerColor
                         ) {
                             Icon(
                                 imageVector        = Icons.Default.Delete,
@@ -222,25 +219,39 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
 /**
  * Contenido del drawer.
  *
- * Cada entrada tiene una X en el extremo derecho. Al pulsarla, se guarda
- * el panel candidato a borrar en [panelToDelete]. Esto muestra el diálogo
- * de confirmación. El diálogo vive aquí — dentro del drawer — para que
- * se superponga correctamente sobre él.
- *
- * @param onPanelDeleted  Callback con el id del panel confirmado para borrar.
+ * [drawerState] se recibe para que un LaunchedEffect pueda observar
+ * cuándo el drawer pasa a Closed y resetear isPanelDeleteMode a false.
+ * Así el modo borrado de paneles nunca persiste entre aperturas del drawer,
+ * independientemente de cómo se haya cerrado (swipe, botón atrás, etc.).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PanelDrawerContent(
     panels:            List<SoundPanel>,
     currentPanelIndex: Int,
+    drawerState:       DrawerState,
     onPanelSelected:   (Int) -> Unit,
     onPanelDeleted:    (String) -> Unit,
     onAddPanelClicked: () -> Unit
 ) {
-    // Panel candidato a borrar. Cuando no es null, se muestra el diálogo.
-    // Es estado local del drawer: no necesita subir al ViewModel porque
-    // es puramente visual (solo controla qué diálogo está abierto).
+    // Estado local: modo borrado de paneles.
+    // No sube al ViewModel porque es puramente visual y debe resetearse
+    // al cerrar el drawer, sin afectar ningún dato persistente.
+    var isPanelDeleteMode by remember { mutableStateOf(false) }
+
+    // Estado local: panel candidato a borrar (controla el diálogo).
     var panelToDelete by remember { mutableStateOf<SoundPanel?>(null) }
+
+    // Reset automático al cerrar el drawer.
+    // DrawerValue.Closed se emite tanto al hacer swipe como al navegar atrás.
+    // La key es drawerState.currentValue: el efecto se re-ejecuta cada vez
+    // que el estado del drawer cambia.
+    LaunchedEffect(drawerState.currentValue) {
+        if (drawerState.currentValue == DrawerValue.Closed) {
+            isPanelDeleteMode = false
+            panelToDelete     = null
+        }
+    }
 
     ModalDrawerSheet {
         Spacer(Modifier.height(16.dp))
@@ -254,9 +265,6 @@ private fun PanelDrawerContent(
         Spacer(Modifier.height(8.dp))
 
         panels.forEachIndexed { index, panel ->
-            // NavigationDrawerItem no tiene soporte nativo para un trailing icon
-            // interactivo, así que lo construimos con un Row: el ítem ocupa
-            // todo el ancho menos el espacio de la X, y la X está al final.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier          = Modifier
@@ -267,20 +275,21 @@ private fun PanelDrawerContent(
                     label    = { Text(panel.name) },
                     selected = index == currentPanelIndex,
                     onClick  = { onPanelSelected(index) },
-                    modifier = Modifier.weight(1f)  // ocupa el espacio disponible
+                    modifier = Modifier.weight(1f)
                 )
 
-                // X de borrado — fuera del NavigationDrawerItem para que
-                // su área táctil no interfiera con la selección del panel
-                IconButton(
-                    onClick  = { panelToDelete = panel },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector        = Icons.Default.Close,
-                        contentDescription = "Borrar panel ${panel.name}",
-                        tint               = MaterialTheme.colorScheme.error
-                    )
+                // X solo visible en modo borrado de paneles
+                if (isPanelDeleteMode) {
+                    IconButton(
+                        onClick  = { panelToDelete = panel },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Default.Close,
+                            contentDescription = "Borrar panel ${panel.name}",
+                            tint               = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
@@ -289,6 +298,7 @@ private fun PanelDrawerContent(
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         Spacer(Modifier.height(8.dp))
 
+        // Botón "Nuevo panel"
         NavigationDrawerItem(
             label    = { Text("Nuevo panel") },
             selected = false,
@@ -296,15 +306,43 @@ private fun PanelDrawerContent(
             icon     = { Icon(Icons.Default.Add, contentDescription = null) },
             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
         )
+
+        // Botón "Borrar paneles" — actúa como toggle igual que el FAB de botones.
+        // Cambia de color cuando el modo está activo para indicar el estado.
+        NavigationDrawerItem(
+            label    = {
+                Text(
+                    text  = if (isPanelDeleteMode) "Terminar borrado" else "Borrar paneles",
+                    color = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            selected = isPanelDeleteMode,
+            onClick  = { isPanelDeleteMode = !isPanelDeleteMode },
+            icon     = {
+                Icon(
+                    imageVector        = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            colors   = NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = MaterialTheme.colorScheme.errorContainer
+            ),
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
     }
 
-    // Diálogo de confirmación — se renderiza cuando panelToDelete no es null
+    // Diálogo de confirmación
     panelToDelete?.let { panel ->
         ConfirmDeletePanelDialog(
             panelName = panel.name,
             onConfirm = {
                 onPanelDeleted(panel.id)
                 panelToDelete = null
+                // Si era el último panel, salir del modo borrado también
+                if (panels.size <= 1) isPanelDeleteMode = false
             },
             onDismiss = { panelToDelete = null }
         )
