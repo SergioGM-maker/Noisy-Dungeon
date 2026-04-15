@@ -17,11 +17,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +39,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
@@ -69,6 +73,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     val currentPanelIndex = uiState.currentPanelIndex
     val currentPanel      = uiState.currentPanel
     val isDeleteMode      = uiState.isDeleteMode
+    val isLoadingSounds   = uiState.isLoadingSounds
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope       = rememberCoroutineScope()
@@ -95,7 +100,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
             PanelDrawerContent(
                 panels            = panels,
                 currentPanelIndex = currentPanelIndex,
-                drawerState       = drawerState,   // ← para detectar el cierre
+                drawerState       = drawerState,
                 onPanelSelected   = { index ->
                     viewModel.selectPanel(index)
                     scope.launch { drawerState.close() }
@@ -155,38 +160,80 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                 }
             }
         ) { innerPadding ->
-            val buttons = currentPanel?.buttons.orEmpty()
 
-            if (buttons.isEmpty()) {
-                Box(
-                    modifier         = Modifier.padding(innerPadding).fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
-                                else "Añade sonidos con el botón +",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns               = GridCells.Adaptive(minSize = 110.dp),
-                    contentPadding        = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement   = Arrangement.spacedBy(8.dp),
-                    modifier              = Modifier.padding(innerPadding).fillMaxSize()
-                ) {
-                    items(items = buttons, key = { it.id }) { button ->
-                        SoundButtonCard(
-                            button        = button,
-                            isDeleteMode  = isDeleteMode,
-                            onClick       = { viewModel.playSound(button) },
-                            onDelete      = {
-                                currentPanel?.let { viewModel.removeButton(it.id, button.id) }
-                            },
-                            onChangeAudio = { viewModel.requestAudioPicker(button.id) }
+            // ----------------------------------------------------------------
+            // Contenido principal envuelto en Box para poder superponer
+            // el overlay de carga encima sin desplazar el grid.
+            // ----------------------------------------------------------------
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+
+                val buttons = currentPanel?.buttons.orEmpty()
+
+                if (buttons.isEmpty() && !isLoadingSounds) {
+                    Box(
+                        modifier         = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
+                                    else "Añade sonidos con el botón +",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                } else {
+                    // LazyVerticalGrid es scrolleable por defecto —
+                    // no necesita ningún modificador adicional.
+                    LazyVerticalGrid(
+                        columns               = GridCells.Adaptive(minSize = 110.dp),
+                        contentPadding        = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement   = Arrangement.spacedBy(8.dp),
+                        modifier              = Modifier.fillMaxSize()
+                    ) {
+                        items(items = buttons, key = { it.id }) { button ->
+                            SoundButtonCard(
+                                button        = button,
+                                isDeleteMode  = isDeleteMode,
+                                onClick       = { viewModel.playSound(button) },
+                                onDelete      = {
+                                    currentPanel?.let { viewModel.removeButton(it.id, button.id) }
+                                },
+                                onChangeAudio = { viewModel.requestAudioPicker(button.id) }
+                            )
+                        }
+                    }
+                }
+
+                // ------------------------------------------------------------
+                // Overlay de carga
+                //
+                // Surface semitransparente sobre el grid que bloquea la
+                // interacción mientras los sonidos no están listos.
+                // Se sitúa después del grid en el árbol de composición →
+                // se renderiza encima de él (orden Z natural en Box).
+                //
+                // El alpha 0.6f deja ver el contenido bajo el overlay,
+                // indicando que hay contenido pero aún no está disponible.
+                // ------------------------------------------------------------
+                if (isLoadingSounds) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+                    ) {
+                        Column(
+                            modifier            = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                text  = "Cargando sonidos…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -216,14 +263,6 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     }
 }
 
-/**
- * Contenido del drawer.
- *
- * [drawerState] se recibe para que un LaunchedEffect pueda observar
- * cuándo el drawer pasa a Closed y resetear isPanelDeleteMode a false.
- * Así el modo borrado de paneles nunca persiste entre aperturas del drawer,
- * independientemente de cómo se haya cerrado (swipe, botón atrás, etc.).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PanelDrawerContent(
@@ -234,18 +273,9 @@ private fun PanelDrawerContent(
     onPanelDeleted:    (String) -> Unit,
     onAddPanelClicked: () -> Unit
 ) {
-    // Estado local: modo borrado de paneles.
-    // No sube al ViewModel porque es puramente visual y debe resetearse
-    // al cerrar el drawer, sin afectar ningún dato persistente.
     var isPanelDeleteMode by remember { mutableStateOf(false) }
+    var panelToDelete     by remember { mutableStateOf<SoundPanel?>(null) }
 
-    // Estado local: panel candidato a borrar (controla el diálogo).
-    var panelToDelete by remember { mutableStateOf<SoundPanel?>(null) }
-
-    // Reset automático al cerrar el drawer.
-    // DrawerValue.Closed se emite tanto al hacer swipe como al navegar atrás.
-    // La key es drawerState.currentValue: el efecto se re-ejecuta cada vez
-    // que el estado del drawer cambia.
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Closed) {
             isPanelDeleteMode = false
@@ -254,94 +284,101 @@ private fun PanelDrawerContent(
     }
 
     ModalDrawerSheet {
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text       = "Paneles",
-            style      = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier   = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-        )
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        Spacer(Modifier.height(8.dp))
+        // ----------------------------------------------------------------
+        // Column con verticalScroll: el drawer es scrolleable cuando hay
+        // más paneles de los que caben en pantalla.
+        //
+        // rememberScrollState() mantiene la posición de scroll entre
+        // recomposiciones, por lo que no salta al inicio al añadir paneles.
+        // ----------------------------------------------------------------
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 8.dp)
+        ) {
+            Text(
+                text       = "Paneles",
+                style      = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier   = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            Spacer(Modifier.height(8.dp))
 
-        panels.forEachIndexed { index, panel ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier          = Modifier
-                    .fillMaxWidth()
-                    .padding(NavigationDrawerItemDefaults.ItemPadding)
-            ) {
-                NavigationDrawerItem(
-                    label    = { Text(panel.name) },
-                    selected = index == currentPanelIndex,
-                    onClick  = { onPanelSelected(index) },
-                    modifier = Modifier.weight(1f)
-                )
+            panels.forEachIndexed { index, panel ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .padding(NavigationDrawerItemDefaults.ItemPadding)
+                ) {
+                    NavigationDrawerItem(
+                        label    = { Text(panel.name) },
+                        selected = index == currentPanelIndex,
+                        onClick  = { onPanelSelected(index) },
+                        modifier = Modifier.weight(1f)
+                    )
 
-                // X solo visible en modo borrado de paneles
-                if (isPanelDeleteMode) {
-                    IconButton(
-                        onClick  = { panelToDelete = panel },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector        = Icons.Default.Close,
-                            contentDescription = "Borrar panel ${panel.name}",
-                            tint               = MaterialTheme.colorScheme.error
-                        )
+                    if (isPanelDeleteMode) {
+                        IconButton(
+                            onClick  = { panelToDelete = panel },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.Close,
+                                contentDescription = "Borrar panel ${panel.name}",
+                                tint               = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            Spacer(Modifier.height(8.dp))
+
+            NavigationDrawerItem(
+                label    = { Text("Nuevo panel") },
+                selected = false,
+                onClick  = onAddPanelClicked,
+                icon     = { Icon(Icons.Default.Add, contentDescription = null) },
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+            )
+
+            NavigationDrawerItem(
+                label    = {
+                    Text(
+                        text  = if (isPanelDeleteMode) "Cancelar borrado" else "Borrar paneles",
+                        color = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                selected = isPanelDeleteMode,
+                onClick  = { isPanelDeleteMode = !isPanelDeleteMode },
+                icon     = {
+                    Icon(
+                        imageVector        = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                colors   = NavigationDrawerItemDefaults.colors(
+                    selectedContainerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+            )
         }
-
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        Spacer(Modifier.height(8.dp))
-
-        // Botón "Nuevo panel"
-        NavigationDrawerItem(
-            label    = { Text("Nuevo panel") },
-            selected = false,
-            onClick  = onAddPanelClicked,
-            icon     = { Icon(Icons.Default.Add, contentDescription = null) },
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
-
-        // Botón "Borrar paneles" — actúa como toggle igual que el FAB de botones.
-        // Cambia de color cuando el modo está activo para indicar el estado.
-        NavigationDrawerItem(
-            label    = {
-                Text(
-                    text  = if (isPanelDeleteMode) "Terminar borrado" else "Borrar paneles",
-                    color = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            selected = isPanelDeleteMode,
-            onClick  = { isPanelDeleteMode = !isPanelDeleteMode },
-            icon     = {
-                Icon(
-                    imageVector        = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
-                           else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            colors   = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = MaterialTheme.colorScheme.errorContainer
-            ),
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
     }
 
-    // Diálogo de confirmación
     panelToDelete?.let { panel ->
         ConfirmDeletePanelDialog(
             panelName = panel.name,
             onConfirm = {
                 onPanelDeleted(panel.id)
                 panelToDelete = null
-                // Si era el último panel, salir del modo borrado también
                 if (panels.size <= 1) isPanelDeleteMode = false
             },
             onDismiss = { panelToDelete = null }
