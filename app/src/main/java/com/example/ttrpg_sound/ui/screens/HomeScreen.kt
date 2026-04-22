@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
@@ -60,6 +61,7 @@ import com.example.ttrpg_sound.data.model.SoundPanel
 import com.example.ttrpg_sound.ui.components.AddButtonDialog
 import com.example.ttrpg_sound.ui.components.AddPanelDialog
 import com.example.ttrpg_sound.ui.components.ConfirmDeletePanelDialog
+import com.example.ttrpg_sound.ui.components.SettingsDrawer
 import com.example.ttrpg_sound.ui.components.SoundButtonCard
 import com.example.ttrpg_sound.ui.viewmodel.SoundPanelViewModel
 import kotlinx.coroutines.launch
@@ -81,6 +83,10 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     var showAddButtonDialog by remember { mutableStateOf(false) }
     var showAddPanelDialog  by remember { mutableStateOf(false) }
 
+    // Estado local del drawer de ajustes.
+    // Es puramente visual — no necesita subir al ViewModel.
+    var showSettingsDrawer by remember { mutableStateOf(false) }
+
     val audioPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -94,150 +100,155 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState   = drawerState,
-        drawerContent = {
-            PanelDrawerContent(
-                panels            = panels,
-                currentPanelIndex = currentPanelIndex,
-                drawerState       = drawerState,
-                onPanelSelected   = { index ->
-                    viewModel.selectPanel(index)
-                    scope.launch { drawerState.close() }
-                },
-                onPanelDeleted    = { panelId -> viewModel.deletePanel(panelId) },
-                onAddPanelClicked = {
-                    scope.launch { drawerState.close() }
-                    showAddPanelDialog = true
-                }
-            )
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Abrir menú de paneles")
-                        }
+    // Box raíz: contiene el drawer de paneles + toda la UI, y encima
+    // el SettingsDrawer superpuesto cuando está visible.
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        ModalNavigationDrawer(
+            drawerState   = drawerState,
+            drawerContent = {
+                PanelDrawerContent(
+                    panels            = panels,
+                    currentPanelIndex = currentPanelIndex,
+                    drawerState       = drawerState,
+                    onPanelSelected   = { index ->
+                        viewModel.selectPanel(index)
+                        scope.launch { drawerState.close() }
                     },
-                    title = { Text(currentPanel?.name ?: "TTRPG Sound") }
+                    onPanelDeleted    = { panelId -> viewModel.deletePanel(panelId) },
+                    onAddPanelClicked = {
+                        scope.launch { drawerState.close() }
+                        showAddPanelDialog = true
+                    }
                 )
-            },
-            floatingActionButton = {
-                if (panels.isNotEmpty()) {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        FloatingActionButton(
-                            onClick        = { viewModel.toggleDeleteMode() },
-                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.errorContainer
-                                            else FloatingActionButtonDefaults.containerColor
-                        ) {
-                            Icon(
-                                imageVector        = Icons.Default.Delete,
-                                contentDescription = if (isDeleteMode) "Salir del modo borrado"
-                                                     else "Activar modo borrado",
-                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
-                                       else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        FloatingActionButton(
-                            onClick        = { if (!isDeleteMode) showAddButtonDialog = true },
-                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.surfaceVariant
-                                            else FloatingActionButtonDefaults.containerColor
-                        ) {
-                            Icon(
-                                imageVector        = Icons.Default.Add,
-                                contentDescription = "Añadir botón de sonido",
-                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
-                                       else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
             }
-        ) { innerPadding ->
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Abrir menú de paneles")
+                            }
+                        },
+                        title = { Text(currentPanel?.name ?: "TTRPG Sound") },
+                        // Icono de engranaje en el extremo derecho de la TopAppBar
+                        actions = {
+                            IconButton(onClick = { showSettingsDrawer = true }) {
+                                Icon(
+                                    imageVector        = Icons.Default.Settings,
+                                    contentDescription = "Abrir ajustes"
+                                )
+                            }
+                        }
+                    )
+                },
+                floatingActionButton = {
+                    if (panels.isNotEmpty()) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            FloatingActionButton(
+                                onClick        = { viewModel.toggleDeleteMode() },
+                                containerColor = if (isDeleteMode) MaterialTheme.colorScheme.errorContainer
+                                                else FloatingActionButtonDefaults.containerColor
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.Default.Delete,
+                                    contentDescription = if (isDeleteMode) "Salir del modo borrado"
+                                                         else "Activar modo borrado",
+                                    tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
+                                           else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
 
-            // ----------------------------------------------------------------
-            // Contenido principal envuelto en Box para poder superponer
-            // el overlay de carga encima sin desplazar el grid.
-            // ----------------------------------------------------------------
-            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-
-                val buttons = currentPanel?.buttons.orEmpty()
-
-                if (buttons.isEmpty() && !isLoadingSounds) {
-                    Box(
-                        modifier         = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
-                                    else "Añade sonidos con el botón +",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    // LazyVerticalGrid es scrolleable por defecto —
-                    // no necesita ningún modificador adicional.
-                    LazyVerticalGrid(
-                        columns               = GridCells.Adaptive(minSize = 110.dp),
-                        contentPadding        = PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement   = Arrangement.spacedBy(8.dp),
-                        modifier              = Modifier.fillMaxSize()
-                    ) {
-                        items(items = buttons, key = { it.id }) { button ->
-                            SoundButtonCard(
-                                button        = button,
-                                isDeleteMode  = isDeleteMode,
-                                onClick       = { viewModel.playSound(button) },
-                                onDelete      = {
-                                    currentPanel?.let { viewModel.removeButton(it.id, button.id) }
-                                },
-                                onChangeAudio = { viewModel.requestAudioPicker(button.id) }
-                            )
+                            FloatingActionButton(
+                                onClick        = { if (!isDeleteMode) showAddButtonDialog = true },
+                                containerColor = if (isDeleteMode) MaterialTheme.colorScheme.surfaceVariant
+                                                else FloatingActionButtonDefaults.containerColor
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.Default.Add,
+                                    contentDescription = "Añadir botón de sonido",
+                                    tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
+                                           else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
+            ) { innerPadding ->
 
-                // ------------------------------------------------------------
-                // Overlay de carga
-                //
-                // Surface semitransparente sobre el grid que bloquea la
-                // interacción mientras los sonidos no están listos.
-                // Se sitúa después del grid en el árbol de composición →
-                // se renderiza encima de él (orden Z natural en Box).
-                //
-                // El alpha 0.6f deja ver el contenido bajo el overlay,
-                // indicando que hay contenido pero aún no está disponible.
-                // ------------------------------------------------------------
-                if (isLoadingSounds) {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-                    ) {
-                        Column(
-                            modifier            = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
+                Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+
+                    val buttons = currentPanel?.buttons.orEmpty()
+
+                    if (buttons.isEmpty() && !isLoadingSounds) {
+                        Box(
+                            modifier         = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
-                            Spacer(Modifier.height(16.dp))
                             Text(
-                                text  = "Cargando sonidos…",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
+                                        else "Añade sonidos con el botón +",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns               = GridCells.Adaptive(minSize = 110.dp),
+                            contentPadding        = PaddingValues(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement   = Arrangement.spacedBy(8.dp),
+                            modifier              = Modifier.fillMaxSize()
+                        ) {
+                            items(items = buttons, key = { it.id }) { button ->
+                                SoundButtonCard(
+                                    button        = button,
+                                    isDeleteMode  = isDeleteMode,
+                                    onClick       = { viewModel.playSound(button) },
+                                    onDelete      = {
+                                        currentPanel?.let { viewModel.removeButton(it.id, button.id) }
+                                    },
+                                    onChangeAudio = { viewModel.requestAudioPicker(button.id) }
+                                )
+                            }
+                        }
+                    }
+
+                    if (isLoadingSounds) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+                        ) {
+                            Column(
+                                modifier            = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    text  = "Cargando sonidos…",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+
+        // SettingsDrawer se renderiza encima de todo el contenido.
+        // Al estar dentro del Box raíz pero fuera del ModalNavigationDrawer,
+        // no interfiere con el drawer de paneles y se superpone correctamente
+        // sobre la TopAppBar, el Scaffold y los FABs.
+        SettingsDrawer(
+            isVisible = showSettingsDrawer,
+            onDismiss = { showSettingsDrawer = false }
+        )
     }
 
     if (showAddButtonDialog) {
@@ -284,13 +295,6 @@ private fun PanelDrawerContent(
     }
 
     ModalDrawerSheet {
-        // ----------------------------------------------------------------
-        // Column con verticalScroll: el drawer es scrolleable cuando hay
-        // más paneles de los que caben en pantalla.
-        //
-        // rememberScrollState() mantiene la posición de scroll entre
-        // recomposiciones, por lo que no salta al inicio al añadir paneles.
-        // ----------------------------------------------------------------
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -319,7 +323,6 @@ private fun PanelDrawerContent(
                         onClick  = { onPanelSelected(index) },
                         modifier = Modifier.weight(1f)
                     )
-
                     if (isPanelDeleteMode) {
                         IconButton(
                             onClick  = { panelToDelete = panel },
