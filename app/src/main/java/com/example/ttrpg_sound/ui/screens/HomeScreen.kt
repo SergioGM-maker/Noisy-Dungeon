@@ -3,6 +3,8 @@ package com.example.ttrpg_sound.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,12 +14,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -28,22 +33,29 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +65,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,8 +74,9 @@ import com.example.ttrpg_sound.data.model.SoundPanel
 import com.example.ttrpg_sound.ui.components.AddButtonDialog
 import com.example.ttrpg_sound.ui.components.AddPanelDialog
 import com.example.ttrpg_sound.ui.components.ConfirmDeletePanelDialog
-import com.example.ttrpg_sound.ui.components.SettingsDrawer
 import com.example.ttrpg_sound.ui.components.SoundButtonCard
+import com.example.ttrpg_sound.ui.theme.AppColorScheme
+import com.example.ttrpg_sound.ui.theme.buildColorScheme
 import com.example.ttrpg_sound.ui.viewmodel.SoundPanelViewModel
 import kotlinx.coroutines.launch
 
@@ -77,15 +91,13 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
     val isDeleteMode      = uiState.isDeleteMode
     val isLoadingSounds   = uiState.isLoadingSounds
 
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope       = rememberCoroutineScope()
+    val drawerState        = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope              = rememberCoroutineScope()
+    val settingsSheetState = rememberModalBottomSheetState()
 
     var showAddButtonDialog by remember { mutableStateOf(false) }
     var showAddPanelDialog  by remember { mutableStateOf(false) }
-
-    // Estado local del drawer de ajustes.
-    // Es puramente visual — no necesita subir al ViewModel.
-    var showSettingsDrawer by remember { mutableStateOf(false) }
+    var showSettingsSheet   by remember { mutableStateOf(false) }
 
     val audioPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -100,155 +112,147 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
         }
     }
 
-    // Box raíz: contiene el drawer de paneles + toda la UI, y encima
-    // el SettingsDrawer superpuesto cuando está visible.
-    Box(modifier = Modifier.fillMaxSize()) {
-
-        ModalNavigationDrawer(
-            drawerState   = drawerState,
-            drawerContent = {
-                PanelDrawerContent(
-                    panels            = panels,
-                    currentPanelIndex = currentPanelIndex,
-                    drawerState       = drawerState,
-                    onPanelSelected   = { index ->
-                        viewModel.selectPanel(index)
-                        scope.launch { drawerState.close() }
+    ModalNavigationDrawer(
+        drawerState   = drawerState,
+        drawerContent = {
+            PanelDrawerContent(
+                panels            = panels,
+                currentPanelIndex = currentPanelIndex,
+                drawerState       = drawerState,
+                onPanelSelected   = { index ->
+                    viewModel.selectPanel(index)
+                    scope.launch { drawerState.close() }
+                },
+                onPanelDeleted    = { panelId -> viewModel.deletePanel(panelId) },
+                onAddPanelClicked = {
+                    scope.launch { drawerState.close() }
+                    showAddPanelDialog = true
+                }
+            )
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Abrir menú de paneles")
+                        }
                     },
-                    onPanelDeleted    = { panelId -> viewModel.deletePanel(panelId) },
-                    onAddPanelClicked = {
-                        scope.launch { drawerState.close() }
-                        showAddPanelDialog = true
+                    title   = { Text(currentPanel?.name ?: "TTRPG Sound") },
+                    actions = {
+                        IconButton(onClick = { showSettingsSheet = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                        }
                     }
                 )
-            }
-        ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Abrir menú de paneles")
-                            }
-                        },
-                        title = { Text(currentPanel?.name ?: "TTRPG Sound") },
-                        // Icono de engranaje en el extremo derecho de la TopAppBar
-                        actions = {
-                            IconButton(onClick = { showSettingsDrawer = true }) {
-                                Icon(
-                                    imageVector        = Icons.Default.Settings,
-                                    contentDescription = "Abrir ajustes"
-                                )
-                            }
-                        }
-                    )
-                },
-                floatingActionButton = {
-                    if (panels.isNotEmpty()) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+            },
+            floatingActionButton = {
+                if (panels.isNotEmpty()) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FloatingActionButton(
+                            onClick        = { viewModel.toggleDeleteMode() },
+                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.errorContainer
+                                            else FloatingActionButtonDefaults.containerColor
                         ) {
-                            FloatingActionButton(
-                                onClick        = { viewModel.toggleDeleteMode() },
-                                containerColor = if (isDeleteMode) MaterialTheme.colorScheme.errorContainer
-                                                else FloatingActionButtonDefaults.containerColor
-                            ) {
-                                Icon(
-                                    imageVector        = Icons.Default.Delete,
-                                    contentDescription = if (isDeleteMode) "Salir del modo borrado"
-                                                         else "Activar modo borrado",
-                                    tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
-                                           else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-
-                            FloatingActionButton(
-                                onClick        = { if (!isDeleteMode) showAddButtonDialog = true },
-                                containerColor = if (isDeleteMode) MaterialTheme.colorScheme.surfaceVariant
-                                                else FloatingActionButtonDefaults.containerColor
-                            ) {
-                                Icon(
-                                    imageVector        = Icons.Default.Add,
-                                    contentDescription = "Añadir botón de sonido",
-                                    tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
-                                           else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            Icon(
+                                imageVector        = Icons.Default.Delete,
+                                contentDescription = if (isDeleteMode) "Salir del modo borrado"
+                                                     else "Activar modo borrado",
+                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
+                                       else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        FloatingActionButton(
+                            onClick        = { if (!isDeleteMode) showAddButtonDialog = true },
+                            containerColor = if (isDeleteMode) MaterialTheme.colorScheme.surfaceVariant
+                                            else FloatingActionButtonDefaults.containerColor
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.Add,
+                                contentDescription = "Añadir botón de sonido",
+                                tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
+                                       else MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
-            ) { innerPadding ->
+            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                val buttons = currentPanel?.buttons.orEmpty()
 
-                Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-
-                    val buttons = currentPanel?.buttons.orEmpty()
-
-                    if (buttons.isEmpty() && !isLoadingSounds) {
-                        Box(
-                            modifier         = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
-                                        else "Añade sonidos con el botón +",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (buttons.isEmpty() && !isLoadingSounds) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
+                                    else "Añade sonidos con el botón +",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns               = GridCells.Adaptive(minSize = 110.dp),
+                        contentPadding        = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement   = Arrangement.spacedBy(8.dp),
+                        modifier              = Modifier.fillMaxSize()
+                    ) {
+                        items(items = buttons, key = { it.id }) { button ->
+                            SoundButtonCard(
+                                button        = button,
+                                isDeleteMode  = isDeleteMode,
+                                onClick       = { viewModel.playSound(button) },
+                                onDelete      = {
+                                    currentPanel?.let { viewModel.removeButton(it.id, button.id) }
+                                },
+                                onChangeAudio = { viewModel.requestAudioPicker(button.id) }
                             )
                         }
-                    } else {
-                        LazyVerticalGrid(
-                            columns               = GridCells.Adaptive(minSize = 110.dp),
-                            contentPadding        = PaddingValues(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement   = Arrangement.spacedBy(8.dp),
-                            modifier              = Modifier.fillMaxSize()
-                        ) {
-                            items(items = buttons, key = { it.id }) { button ->
-                                SoundButtonCard(
-                                    button        = button,
-                                    isDeleteMode  = isDeleteMode,
-                                    onClick       = { viewModel.playSound(button) },
-                                    onDelete      = {
-                                        currentPanel?.let { viewModel.removeButton(it.id, button.id) }
-                                    },
-                                    onChangeAudio = { viewModel.requestAudioPicker(button.id) }
-                                )
-                            }
-                        }
                     }
+                }
 
-                    if (isLoadingSounds) {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+                if (isLoadingSounds) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+                    ) {
+                        Column(
+                            modifier            = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier            = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                CircularProgressIndicator()
-                                Spacer(Modifier.height(16.dp))
-                                Text(
-                                    text  = "Cargando sonidos…",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                text  = "Cargando sonidos…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
             }
         }
+    }
 
-        // SettingsDrawer se renderiza encima de todo el contenido.
-        // Al estar dentro del Box raíz pero fuera del ModalNavigationDrawer,
-        // no interfiere con el drawer de paneles y se superpone correctamente
-        // sobre la TopAppBar, el Scaffold y los FABs.
-        SettingsDrawer(
-            isVisible = showSettingsDrawer,
-            onDismiss = { showSettingsDrawer = false }
-        )
+    if (showSettingsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSettingsSheet = false },
+            sheetState       = settingsSheetState
+        ) {
+            SettingsSheetContent(
+                useRoundedCorners = uiState.useRoundedCorners,
+                appColorScheme    = uiState.appColorScheme,
+                onToggleCorners   = { viewModel.toggleCornerStyle() },
+                onSelectScheme    = { viewModel.setColorScheme(it) },
+                modifier          = Modifier.navigationBarsPadding()
+            )
+        }
     }
 
     if (showAddButtonDialog) {
@@ -273,6 +277,153 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
         )
     }
 }
+
+// =============================================================================
+// Ajustes
+// =============================================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheetContent(
+    useRoundedCorners: Boolean,
+    appColorScheme:    AppColorScheme,
+    onToggleCorners:   () -> Unit,
+    onSelectScheme:    (AppColorScheme) -> Unit,
+    modifier:          Modifier = Modifier
+) {
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text       = "Ajustes",
+            style      = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier   = Modifier.padding(bottom = 16.dp)
+        )
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        // --- Esquinas ---
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Esquinas redondeadas", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text  = "Afecta a botones, tarjetas y diálogos",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked         = useRoundedCorners,
+                onCheckedChange = { onToggleCorners() },
+                modifier        = Modifier.padding(start = 16.dp)
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        // --- Esquema de color ---
+        Text(
+            text     = "Esquema de color",
+            style    = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // ExposedDropdownMenuBox: el componente estándar de Material3
+        // para dropdowns de selección. Gestiona el estado de expansión
+        // y la accesibilidad automáticamente.
+        ExposedDropdownMenuBox(
+            expanded          = dropdownExpanded,
+            onExpandedChange  = { dropdownExpanded = it },
+            modifier          = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value            = appColorScheme.displayName,
+                onValueChange    = {},
+                readOnly         = true,
+                trailingIcon     = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded)
+                },
+                leadingIcon      = {
+                    // Muestra una pastilla con los colores del esquema activo
+                    // para que el usuario vea el resultado antes de abrir el menú
+                    SchemeColorPreview(scheme = appColorScheme)
+                },
+                modifier         = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+
+            ExposedDropdownMenu(
+                expanded          = dropdownExpanded,
+                onDismissRequest  = { dropdownExpanded = false }
+            ) {
+                AppColorScheme.entries.forEach { scheme ->
+                    DropdownMenuItem(
+                        text    = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                SchemeColorPreview(scheme = scheme)
+                                Spacer(Modifier.width(12.dp))
+                                Text(scheme.displayName)
+                            }
+                        },
+                        onClick = {
+                            onSelectScheme(scheme)
+                            dropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Dos círculos de colores que representan visualmente un esquema:
+ * el primero muestra el color de botones, el segundo el fondo.
+ *
+ * Construimos el ColorScheme del esquema aquí directamente para poder
+ * leer sus colores sin depender de MaterialTheme (que refleja el esquema
+ * activo, no el del item del dropdown que estamos renderizando).
+ */
+@Composable
+private fun SchemeColorPreview(scheme: AppColorScheme) {
+    val cs = buildColorScheme(scheme)
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(cs.primaryContainer)
+                .border(0.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(cs.background)
+                .border(0.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+        )
+    }
+}
+
+// =============================================================================
+// Drawer de paneles (sin cambios respecto a la versión anterior)
+// =============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -349,7 +500,6 @@ private fun PanelDrawerContent(
                 icon     = { Icon(Icons.Default.Add, contentDescription = null) },
                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
             )
-
             NavigationDrawerItem(
                 label    = {
                     Text(

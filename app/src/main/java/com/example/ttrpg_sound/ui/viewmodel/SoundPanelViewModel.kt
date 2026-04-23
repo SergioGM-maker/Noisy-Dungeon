@@ -11,6 +11,7 @@ import com.example.ttrpg_sound.data.local.AppDatabase
 import com.example.ttrpg_sound.data.model.SoundButton
 import com.example.ttrpg_sound.data.model.SoundPanel
 import com.example.ttrpg_sound.data.repository.SoundRepository
+import com.example.ttrpg_sound.ui.theme.AppColorScheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,11 +28,9 @@ data class UiState(
     val currentPanelIndex: Int = 0,
     val pendingAudioButtonId: String? = null,
     val isDeleteMode: Boolean = false,
-    /**
-     * True mientras SoundPool está cargando los sonidos del panel activo.
-     * HomeScreen muestra un overlay de carga cuando este flag está activo.
-     */
-    val isLoadingSounds: Boolean = false
+    val isLoadingSounds: Boolean = false,
+    val useRoundedCorners: Boolean = true,
+    val appColorScheme: AppColorScheme = AppColorScheme.DEFAULT
 ) {
     val currentPanel: SoundPanel?
         get() = panels.getOrNull(currentPanelIndex)
@@ -54,21 +53,14 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         )
         .build()
 
-    private val soundCache   = mutableMapOf<String, Int>()  // buttonId → soundId
-    private val pendingPlay  = mutableMapOf<Int, String>()  // soundId → buttonId (reproducir al cargar)
-    private val pendingPreload = mutableMapOf<Int, String>() // soundId → buttonId (solo cachear)
-
-    // Contador de sonidos que quedan por completar en la precarga actual.
-    // Cuando llega a 0, isLoadingSounds pasa a false.
+    private val soundCache     = mutableMapOf<String, Int>()
+    private val pendingPlay    = mutableMapOf<Int, String>()
+    private val pendingPreload = mutableMapOf<Int, String>()
     private var preloadPending = 0
 
     init {
         soundPool.setOnLoadCompleteListener { _, soundId, status ->
-
             when {
-                // --- Caso 1: carga iniciada por playSound() ---
-                // El usuario pulsó el botón mientras el sonido aún no estaba en caché.
-                // Reproducir inmediatamente al terminar.
                 pendingPlay.containsKey(soundId) -> {
                     val buttonId = pendingPlay.remove(soundId) ?: return@setOnLoadCompleteListener
                     if (status == 0) {
@@ -76,29 +68,17 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
                         soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
                     }
                 }
-
-                // --- Caso 2: carga iniciada por preloadPanel() ---
-                // Solo guardamos en caché. Decrementamos el contador y, cuando
-                // llega a 0, ocultamos el overlay de carga.
                 pendingPreload.containsKey(soundId) -> {
                     val buttonId = pendingPreload.remove(soundId) ?: return@setOnLoadCompleteListener
                     if (status == 0) soundCache[buttonId] = soundId
-
                     preloadPending = (preloadPending - 1).coerceAtLeast(0)
                     if (preloadPending == 0) _isLoadingSounds.value = false
                 }
             }
         }
-
-        // Precarga del panel inicial en cuanto Room emite los primeros datos.
-        // 'first()' recoge una sola emisión y cancela la suscripción —
-        // no necesitamos seguir observando aquí, selectPanel() se encargará
-        // de las precargas siguientes.
         viewModelScope.launch {
             val initialPanels = repository.panels.first()
-            if (initialPanels.isNotEmpty()) {
-                preloadPanel(initialPanels[0])
-            }
+            if (initialPanels.isNotEmpty()) preloadPanel(initialPanels[0])
         }
     }
 
@@ -110,6 +90,8 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     private val _pendingAudioButtonId = MutableStateFlow<String?>(null)
     private val _isDeleteMode         = MutableStateFlow(false)
     private val _isLoadingSounds      = MutableStateFlow(false)
+    private val _useRoundedCorners    = MutableStateFlow(true)
+    private val _appColorScheme       = MutableStateFlow(AppColorScheme.DEFAULT)
 
     val uiState: StateFlow<UiState> =
         combine(
@@ -117,14 +99,18 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
             _currentPanelIndex,
             _pendingAudioButtonId,
             _isDeleteMode,
-            _isLoadingSounds
-        ) { panels, index, pendingId, deleteMode, loadingSounds ->
+            combine(_isLoadingSounds, _useRoundedCorners, _appColorScheme) {
+                loading, rounded, scheme -> Triple(loading, rounded, scheme)
+            }
+        ) { panels, index, pendingId, deleteMode, (loadingSounds, rounded, scheme) ->
             UiState(
                 panels               = panels,
                 currentPanelIndex    = index.coerceIn(0, (panels.size - 1).coerceAtLeast(0)),
                 pendingAudioButtonId = pendingId,
                 isDeleteMode         = deleteMode,
-                isLoadingSounds      = loadingSounds
+                isLoadingSounds      = loadingSounds,
+                useRoundedCorners    = rounded,
+                appColorScheme       = scheme
             )
         }.stateIn(
             scope        = viewModelScope,
@@ -133,43 +119,36 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     // -------------------------------------------------------------------------
-    // Precarga de sonidos
+    // Ajustes de apariencia
     // -------------------------------------------------------------------------
 
-    /**
-     * Carga en SoundPool todos los sonidos del [panel] que aún no estén en caché.
-     *
-     * La carga es asíncrona: SoundPool llama a OnLoadCompleteListener por cada
-     * sonido cuando termina. El contador [preloadPending] rastrea cuántos quedan;
-     * cuando llega a 0, [_isLoadingSounds] pasa a false y el overlay desaparece.
-     *
-     * Sonidos ya en caché se saltan — no tiene sentido recargar lo que ya está
-     * en memoria, y hacerlo crearía soundIds duplicados sin referencia.
-     */
-    private fun preloadPanel(panel: SoundPanel) {
-        val toLoad = panel.buttons.filter { button ->
-            button.soundUri != null && !soundCache.containsKey(button.id)
-        }
+    fun toggleCornerStyle() {
+        _useRoundedCorners.update { !it }
+    }
 
-        if (toLoad.isEmpty()) {
-            // Todos los sonidos ya están en caché (o el panel no tiene sonidos).
-            // No hay nada que cargar — ocultar el overlay inmediatamente.
-            _isLoadingSounds.value = false
-            return
+    fun setColorScheme(scheme: AppColorScheme) {
+        _appColorScheme.value = scheme
+    }
+
+    // -------------------------------------------------------------------------
+    // Precarga
+    // -------------------------------------------------------------------------
+
+    private fun preloadPanel(panel: SoundPanel) {
+        val toLoad = panel.buttons.filter {
+            it.soundUri != null && !soundCache.containsKey(it.id)
         }
+        if (toLoad.isEmpty()) { _isLoadingSounds.value = false; return }
 
         _isLoadingSounds.value = true
         preloadPending = toLoad.size
-
         val context = getApplication<Application>()
 
         toLoad.forEach { button ->
             val uri = Uri.parse(button.soundUri)
             try {
-                val pfd     = context.contentResolver.openFileDescriptor(uri, "r")
+                val pfd = context.contentResolver.openFileDescriptor(uri, "r")
                 if (pfd == null) {
-                    // El archivo ya no existe (el usuario lo eliminó del dispositivo).
-                    // Decrementamos el contador para no bloquear el overlay indefinidamente.
                     preloadPending = (preloadPending - 1).coerceAtLeast(0)
                     if (preloadPending == 0) _isLoadingSounds.value = false
                     return@forEach
@@ -196,11 +175,6 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /**
-     * Cambia el panel activo y precarga sus sonidos.
-     * El overlay de carga aparece inmediatamente y desaparece cuando todos
-     * los sonidos del nuevo panel están listos en memoria.
-     */
     fun selectPanel(index: Int) {
         _currentPanelIndex.update { index }
         val panel = uiState.value.panels.getOrNull(index) ?: return
@@ -214,7 +188,6 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
             val position = uiState.value.panels.size
             repository.addPanel(SoundPanel(name = trimmed), position)
             _currentPanelIndex.value = position
-            // Panel nuevo: sin botones, nada que precargar
         }
     }
 
@@ -265,35 +238,26 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
 
     fun playSound(button: SoundButton) {
         val uriString = button.soundUri ?: return
-
         val cachedSoundId = soundCache[button.id]
         if (cachedSoundId != null) {
             soundPool.play(cachedSoundId, 1f, 1f, 0, 0, 1f)
             return
         }
-
-        // No está en caché: puede que la precarga aún no haya terminado,
-        // o que el botón acabe de recibir una URI nueva. Cargamos con
-        // intención de reproducir al terminar (pendingPlay, no pendingPreload).
         val uri = Uri.parse(uriString)
         try {
             val pfd     = getApplication<Application>().contentResolver
                 .openFileDescriptor(uri, "r") ?: return
             val soundId = soundPool.load(pfd.fileDescriptor, 0, pfd.statSize, 1)
-            pendingPlay[soundId] = button.id   // reproducir al cargar
+            pendingPlay[soundId] = button.id
             pfd.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     // -------------------------------------------------------------------------
-    // Selección de archivo de audio
+    // Selección de audio
     // -------------------------------------------------------------------------
 
-    fun requestAudioPicker(buttonId: String) {
-        _pendingAudioButtonId.value = buttonId
-    }
+    fun requestAudioPicker(buttonId: String) { _pendingAudioButtonId.value = buttonId }
 
     fun onAudioFileSelected(uri: Uri) {
         val buttonId = _pendingAudioButtonId.value ?: return
@@ -315,12 +279,7 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun onAudioPickerCancelled() {
-        _pendingAudioButtonId.value = null
-    }
+    fun onAudioPickerCancelled() { _pendingAudioButtonId.value = null }
 
-    override fun onCleared() {
-        soundPool.release()
-        super.onCleared()
-    }
+    override fun onCleared() { soundPool.release(); super.onCleared() }
 }
