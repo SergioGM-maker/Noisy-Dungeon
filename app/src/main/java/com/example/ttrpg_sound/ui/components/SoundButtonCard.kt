@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -90,11 +91,11 @@ fun SoundButtonCard(
                 color     = MaterialTheme.colorScheme.onPrimaryContainer
             )
 
-            // Indicador de audio asignado (esquina superior derecha)
-            if (button.soundUri != null) {
+            // Indicador de audio no asignado (esquina superior derecha)
+            if (button.soundUri == null) {
                 Icon(
-                    imageVector        = Icons.Default.PlayArrow,
-                    contentDescription = "Tiene audio asignado",
+                    imageVector        = Icons.Default.Warning,
+                    contentDescription = "No tiene audio asignado",
                     tint               = MaterialTheme.colorScheme.primary,
                     modifier           = Modifier
                         .size(14.dp)
