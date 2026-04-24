@@ -77,6 +77,7 @@ import com.example.ttrpg_sound.ui.components.ConfirmDeletePanelDialog
 import com.example.ttrpg_sound.ui.components.SoundButtonCard
 import com.example.ttrpg_sound.ui.theme.AppColorScheme
 import com.example.ttrpg_sound.ui.theme.buildColorScheme
+import com.example.ttrpg_sound.ui.viewmodel.AppLanguage
 import com.example.ttrpg_sound.ui.viewmodel.SoundPanelViewModel
 import kotlinx.coroutines.launch
 
@@ -248,8 +249,10 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
             SettingsSheetContent(
                 useRoundedCorners = uiState.useRoundedCorners,
                 appColorScheme    = uiState.appColorScheme,
+                appLanguage       = uiState.appLanguage,
                 onToggleCorners   = { viewModel.toggleCornerStyle() },
                 onSelectScheme    = { viewModel.setColorScheme(it) },
+                onSelectLanguage  = { viewModel.setLanguage(it) },
                 modifier          = Modifier.navigationBarsPadding()
             )
         }
@@ -287,11 +290,14 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
 private fun SettingsSheetContent(
     useRoundedCorners: Boolean,
     appColorScheme:    AppColorScheme,
+    appLanguage:       AppLanguage,
     onToggleCorners:   () -> Unit,
     onSelectScheme:    (AppColorScheme) -> Unit,
+    onSelectLanguage:  (AppLanguage) -> Unit,
     modifier:          Modifier = Modifier
 ) {
-    var dropdownExpanded by remember { mutableStateOf(false) }
+    var colorDropdownExpanded    by remember { mutableStateOf(false) }
+    var languageDropdownExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -340,35 +346,26 @@ private fun SettingsSheetContent(
             style    = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        // ExposedDropdownMenuBox: el componente estándar de Material3
-        // para dropdowns de selección. Gestiona el estado de expansión
-        // y la accesibilidad automáticamente.
         ExposedDropdownMenuBox(
-            expanded          = dropdownExpanded,
-            onExpandedChange  = { dropdownExpanded = it },
-            modifier          = Modifier.fillMaxWidth()
+            expanded         = colorDropdownExpanded,
+            onExpandedChange = { colorDropdownExpanded = it },
+            modifier         = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value            = appColorScheme.displayName,
-                onValueChange    = {},
-                readOnly         = true,
-                trailingIcon     = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded)
+                value         = appColorScheme.displayName,
+                onValueChange = {},
+                readOnly      = true,
+                trailingIcon  = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorDropdownExpanded)
                 },
-                leadingIcon      = {
-                    // Muestra una pastilla con los colores del esquema activo
-                    // para que el usuario vea el resultado antes de abrir el menú
-                    SchemeColorPreview(scheme = appColorScheme)
-                },
-                modifier         = Modifier
+                leadingIcon   = { SchemeColorPreview(scheme = appColorScheme) },
+                modifier      = Modifier
                     .menuAnchor()
                     .fillMaxWidth()
             )
-
             ExposedDropdownMenu(
-                expanded          = dropdownExpanded,
-                onDismissRequest  = { dropdownExpanded = false }
+                expanded         = colorDropdownExpanded,
+                onDismissRequest = { colorDropdownExpanded = false }
             ) {
                 AppColorScheme.entries.forEach { scheme ->
                     DropdownMenuItem(
@@ -381,7 +378,52 @@ private fun SettingsSheetContent(
                         },
                         onClick = {
                             onSelectScheme(scheme)
-                            dropdownExpanded = false
+                            colorDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        // --- Idioma ---
+        // Por ahora es un dropdown dummy: cambia el estado pero no
+        // reemplaza los strings de la UI todavía. Eso se implementará
+        // en el siguiente paso con el sistema de localización de Android.
+        Text(
+            text     = "Idioma",
+            style    = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        ExposedDropdownMenuBox(
+            expanded         = languageDropdownExpanded,
+            onExpandedChange = { languageDropdownExpanded = it },
+            modifier         = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value         = appLanguage.displayName,
+                onValueChange = {},
+                readOnly      = true,
+                trailingIcon  = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageDropdownExpanded)
+                },
+                modifier      = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded         = languageDropdownExpanded,
+                onDismissRequest = { languageDropdownExpanded = false }
+            ) {
+                AppLanguage.entries.forEach { language ->
+                    DropdownMenuItem(
+                        text    = { Text(language.displayName) },
+                        onClick = {
+                            onSelectLanguage(language)
+                            languageDropdownExpanded = false
                         }
                     )
                 }
@@ -395,10 +437,6 @@ private fun SettingsSheetContent(
 /**
  * Dos círculos de colores que representan visualmente un esquema:
  * el primero muestra el color de botones, el segundo el fondo.
- *
- * Construimos el ColorScheme del esquema aquí directamente para poder
- * leer sus colores sin depender de MaterialTheme (que refleja el esquema
- * activo, no el del item del dropdown que estamos renderizando).
  */
 @Composable
 private fun SchemeColorPreview(scheme: AppColorScheme) {
@@ -422,7 +460,7 @@ private fun SchemeColorPreview(scheme: AppColorScheme) {
 }
 
 // =============================================================================
-// Drawer de paneles (sin cambios respecto a la versión anterior)
+// Drawer de paneles
 // =============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -23,6 +23,22 @@ import kotlinx.coroutines.launch
 
 const val MAX_PANEL_NAME_LENGTH = 20
 
+/**
+ * Idiomas disponibles en la app.
+ *
+ * [displayName] es el nombre que ve el usuario en el dropdown,
+ * escrito en el propio idioma para que sea reconocible sin importar
+ * cuál sea el idioma activo ("Español" siempre es legible por un
+ * hispanohablante, igual que "English" para un angloparlante).
+ *
+ * Por ahora el enum solo controla el estado — la lógica de traducción
+ * se implementará en el siguiente paso con un sistema de strings localizado.
+ */
+enum class AppLanguage(val displayName: String) {
+    SPANISH("Español"),
+    ENGLISH("English")
+}
+
 data class UiState(
     val panels: List<SoundPanel> = emptyList(),
     val currentPanelIndex: Int = 0,
@@ -30,7 +46,8 @@ data class UiState(
     val isDeleteMode: Boolean = false,
     val isLoadingSounds: Boolean = false,
     val useRoundedCorners: Boolean = true,
-    val appColorScheme: AppColorScheme = AppColorScheme.DEFAULT
+    val appColorScheme: AppColorScheme = AppColorScheme.DEFAULT,
+    val appLanguage: AppLanguage = AppLanguage.SPANISH
 ) {
     val currentPanel: SoundPanel?
         get() = panels.getOrNull(currentPanelIndex)
@@ -92,6 +109,7 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     private val _isLoadingSounds      = MutableStateFlow(false)
     private val _useRoundedCorners    = MutableStateFlow(true)
     private val _appColorScheme       = MutableStateFlow(AppColorScheme.DEFAULT)
+    private val _appLanguage          = MutableStateFlow(AppLanguage.SPANISH)
 
     val uiState: StateFlow<UiState> =
         combine(
@@ -99,18 +117,31 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
             _currentPanelIndex,
             _pendingAudioButtonId,
             _isDeleteMode,
-            combine(_isLoadingSounds, _useRoundedCorners, _appColorScheme) {
-                loading, rounded, scheme -> Triple(loading, rounded, scheme)
+            combine(
+                _isLoadingSounds,
+                _useRoundedCorners,
+                _appColorScheme,
+                _appLanguage
+            ) { loading, rounded, scheme, lang ->
+                // Empaquetamos los cuatro en una data class anónima para
+                // poder desestructurarlos limpiamente en el combine exterior
+                object {
+                    val loading  = loading
+                    val rounded  = rounded
+                    val scheme   = scheme
+                    val language = lang
+                }
             }
-        ) { panels, index, pendingId, deleteMode, (loadingSounds, rounded, scheme) ->
+        ) { panels, index, pendingId, deleteMode, prefs ->
             UiState(
                 panels               = panels,
                 currentPanelIndex    = index.coerceIn(0, (panels.size - 1).coerceAtLeast(0)),
                 pendingAudioButtonId = pendingId,
                 isDeleteMode         = deleteMode,
-                isLoadingSounds      = loadingSounds,
-                useRoundedCorners    = rounded,
-                appColorScheme       = scheme
+                isLoadingSounds      = prefs.loading,
+                useRoundedCorners    = prefs.rounded,
+                appColorScheme       = prefs.scheme,
+                appLanguage          = prefs.language
             )
         }.stateIn(
             scope        = viewModelScope,
@@ -122,13 +153,11 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     // Ajustes de apariencia
     // -------------------------------------------------------------------------
 
-    fun toggleCornerStyle() {
-        _useRoundedCorners.update { !it }
-    }
+    fun toggleCornerStyle() { _useRoundedCorners.update { !it } }
 
-    fun setColorScheme(scheme: AppColorScheme) {
-        _appColorScheme.value = scheme
-    }
+    fun setColorScheme(scheme: AppColorScheme) { _appColorScheme.value = scheme }
+
+    fun setLanguage(language: AppLanguage) { _appLanguage.value = language }
 
     // -------------------------------------------------------------------------
     // Precarga

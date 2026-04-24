@@ -15,6 +15,11 @@ val DefaultButtonColor  = Color(0xFFBBDEFB)  // azul claro
 val DefaultBackground   = Color(0xFFFFFFFF)  // blanco puro
 val DefaultTextColor    = Color(0xFF000000)  // negro
 
+// --- Oscuro: gris, negro, blanco---
+val OscuroButtonColor  = Color(0xFF555555)  // verde cactus
+val OscuroBackground   = Color(0xFF000000)  // arena
+val OscuroTextColor    = Color(0xFFFFFFFF)  // negro
+
 // --- Mago: turquesa, gris oscuro, blanco puro ---
 val MagoButtonColor     = Color(0xFF00BCD4)  // turquesa
 val MagoBackground      = Color(0xFF37474F)  // gris oscuro
@@ -29,8 +34,3 @@ val VampiroTextColor    = Color(0xFFFFFFFF)  // blanco puro
 val BosqueButtonColor   = Color(0xFF81C784)  // verde claro
 val BosqueBackground    = Color(0xFF1B5E20)  // verde oscuro
 val BosqueTextColor     = Color(0xFFFFFFFF)  // blanco
-
-// --- Oscuro: gris, negro, blanco---
-val OscuroButtonColor  = Color(0xFF555555)  // verde cactus
-val OscuroBackground   = Color(0xFF000000)  // arena
-val OscuroTextColor    = Color(0xFFFFFFFF)  // negro
