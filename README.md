@@ -19,8 +19,8 @@ Hecho:
 
 2.1 Icono de la app
 
-TODO:
-
 2.2 Hacer que tome el idioma automaticamente del OS (voy a conservar el selector en ajustes porque ya lo he hecho)
 
-2.3 Guia de instalacion
+TODO:
+
+2.3 Guia de instalación
