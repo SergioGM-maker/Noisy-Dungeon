@@ -15,10 +15,12 @@ Hecho:
 
 1.5 Esquemas de color diferentes
 
-1.6 Traduccion al ingés
-
-TODO:
+1.6 Traduccion al inglés
 
 2.1 Icono de la app
 
-2.2 Guia de instalacion
+TODO:
+
+2.2 Hacer que tome el idioma automaticamente del OS (voy a conservar el selector en ajustes porque ya lo he hecho)
+
+2.3 Guia de instalacion
