@@ -14,19 +14,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.ttrpg_sound.R
 import com.example.ttrpg_sound.ui.viewmodel.MAX_PANEL_NAME_LENGTH
 
-/**
- * Diálogo para crear un nuevo panel.
- *
- * Aplica dos restricciones al nombre:
- *  1. No puede estar en blanco (el botón "Crear" permanece desactivado).
- *  2. No puede superar [MAX_PANEL_NAME_LENGTH] caracteres.
- *     - La entrada se corta automáticamente en ese límite.
- *     - Un contador visible informa al usuario de los caracteres restantes.
- *     - El contador se pone rojo cuando se alcanza el máximo.
- */
 @Composable
 fun AddPanelDialog(
     onConfirm: (name: String) -> Unit,
@@ -38,37 +30,31 @@ fun AddPanelDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuevo panel") },
-        text = {
+        title = { Text(stringResource(R.string.dialog_new_panel_title)) },
+        text  = {
             Column {
                 OutlinedTextField(
-                    value = text,
+                    value         = text,
                     onValueChange = { input ->
-                        // Cortar silenciosamente si el usuario pega texto más largo
                         if (input.length <= MAX_PANEL_NAME_LENGTH) text = input
                     },
-                    label       = { Text("Nombre del panel") },
-                    placeholder = { Text("Ej: Taberna, Dungeon…") },
-                    singleLine  = true,
-                    // Sufijo con contador de caracteres restantes
-                    suffix = {
+                    label         = { Text(stringResource(R.string.dialog_new_panel_label)) },
+                    placeholder   = { Text(stringResource(R.string.dialog_new_panel_placeholder)) },
+                    singleLine    = true,
+                    suffix        = {
                         Text(
                             text  = "$remaining",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (atLimit) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
+                            color = if (atLimit) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     isError = atLimit
                 )
-                // Mensaje de error cuando se ha alcanzado el límite
                 if (atLimit) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text  = "Máximo $MAX_PANEL_NAME_LENGTH caracteres",
+                        text  = stringResource(R.string.dialog_max_chars, MAX_PANEL_NAME_LENGTH),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -80,11 +66,13 @@ fun AddPanelDialog(
                 onClick = { onConfirm(text) },
                 enabled = text.isNotBlank()
             ) {
-                Text("Crear")
+                Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
         }
     )
 }

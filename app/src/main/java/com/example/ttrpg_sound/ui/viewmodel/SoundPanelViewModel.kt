@@ -5,8 +5,10 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ttrpg_sound.R
 import com.example.ttrpg_sound.data.local.AppDatabase
 import com.example.ttrpg_sound.data.model.SoundButton
 import com.example.ttrpg_sound.data.model.SoundPanel
@@ -24,19 +26,19 @@ import kotlinx.coroutines.launch
 const val MAX_PANEL_NAME_LENGTH = 20
 
 /**
- * Idiomas disponibles en la app.
+ * Idiomas disponibles.
  *
- * [displayName] es el nombre que ve el usuario en el dropdown,
- * escrito en el propio idioma para que sea reconocible sin importar
- * cuál sea el idioma activo ("Español" siempre es legible por un
- * hispanohablante, igual que "English" para un angloparlante).
+ * Vive en el ViewModel (no en Theme) porque es lógica de comportamiento,
+ * no de apariencia visual. AppColorScheme vive en Theme porque sí es
+ * un concepto de tema.
  *
- * Por ahora el enum solo controla el estado — la lógica de traducción
- * se implementará en el siguiente paso con un sistema de strings localizado.
+ * [nameRes] → string en strings.xml, NO se traduce (cada idioma aparece
+ *             siempre en su propio nombre: "Español", "English").
+ * [tag]     → etiqueta BCP-47 para AppCompatDelegate.setApplicationLocales().
  */
-enum class AppLanguage(val displayName: String) {
-    SPANISH("Español"),
-    ENGLISH("English")
+enum class AppLanguage(@StringRes val nameRes: Int, val tag: String) {
+    SPANISH(R.string.lang_spanish, "es"),
+    ENGLISH(R.string.lang_english, "en")
 }
 
 data class UiState(
@@ -46,6 +48,7 @@ data class UiState(
     val isDeleteMode: Boolean = false,
     val isLoadingSounds: Boolean = false,
     val useRoundedCorners: Boolean = true,
+    // AppColorScheme importado desde ui.theme — fuente única de verdad
     val appColorScheme: AppColorScheme = AppColorScheme.DEFAULT,
     val appLanguage: AppLanguage = AppLanguage.SPANISH
 ) {
@@ -117,14 +120,8 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
             _currentPanelIndex,
             _pendingAudioButtonId,
             _isDeleteMode,
-            combine(
-                _isLoadingSounds,
-                _useRoundedCorners,
-                _appColorScheme,
-                _appLanguage
-            ) { loading, rounded, scheme, lang ->
-                // Empaquetamos los cuatro en una data class anónima para
-                // poder desestructurarlos limpiamente en el combine exterior
+            combine(_isLoadingSounds, _useRoundedCorners, _appColorScheme, _appLanguage) {
+                loading, rounded, scheme, lang ->
                 object {
                     val loading  = loading
                     val rounded  = rounded
@@ -150,14 +147,12 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     // -------------------------------------------------------------------------
-    // Ajustes de apariencia
+    // Ajustes
     // -------------------------------------------------------------------------
 
-    fun toggleCornerStyle() { _useRoundedCorners.update { !it } }
-
-    fun setColorScheme(scheme: AppColorScheme) { _appColorScheme.value = scheme }
-
-    fun setLanguage(language: AppLanguage) { _appLanguage.value = language }
+    fun toggleCornerStyle()                    { _useRoundedCorners.update { !it } }
+    fun setColorScheme(s: AppColorScheme)      { _appColorScheme.value = s }
+    fun setLanguage(l: AppLanguage)            { _appLanguage.value = l }
 
     // -------------------------------------------------------------------------
     // Precarga
@@ -206,8 +201,7 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
 
     fun selectPanel(index: Int) {
         _currentPanelIndex.update { index }
-        val panel = uiState.value.panels.getOrNull(index) ?: return
-        preloadPanel(panel)
+        preloadPanel(uiState.value.panels.getOrNull(index) ?: return)
     }
 
     fun addPanel(name: String) {
@@ -227,9 +221,9 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
                 soundCache.remove(button.id)?.let { soundPool.unload(it) }
                 pendingPreload.entries.removeIf { it.value == button.id }
             }
-            val position = uiState.value.panels.indexOf(panel)
-            repository.deletePanel(panel, position)
+            val position     = uiState.value.panels.indexOf(panel)
             val currentIndex = _currentPanelIndex.value
+            repository.deletePanel(panel, position)
             if (currentIndex >= position) {
                 _currentPanelIndex.value = (currentIndex - 1).coerceAtLeast(0)
             }
@@ -266,16 +260,15 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     // -------------------------------------------------------------------------
 
     fun playSound(button: SoundButton) {
-        val uriString = button.soundUri ?: return
+        val uriString     = button.soundUri ?: return
         val cachedSoundId = soundCache[button.id]
         if (cachedSoundId != null) {
             soundPool.play(cachedSoundId, 1f, 1f, 0, 0, 1f)
             return
         }
-        val uri = Uri.parse(uriString)
         try {
             val pfd     = getApplication<Application>().contentResolver
-                .openFileDescriptor(uri, "r") ?: return
+                .openFileDescriptor(Uri.parse(uriString), "r") ?: return
             val soundId = soundPool.load(pfd.fileDescriptor, 0, pfd.statSize, 1)
             pendingPlay[soundId] = button.id
             pfd.close()
@@ -286,7 +279,7 @@ class SoundPanelViewModel(application: Application) : AndroidViewModel(applicati
     // Selección de audio
     // -------------------------------------------------------------------------
 
-    fun requestAudioPicker(buttonId: String) { _pendingAudioButtonId.value = buttonId }
+    fun requestAudioPicker(buttonId: String)  { _pendingAudioButtonId.value = buttonId }
 
     fun onAudioFileSelected(uri: Uri) {
         val buttonId = _pendingAudioButtonId.value ?: return

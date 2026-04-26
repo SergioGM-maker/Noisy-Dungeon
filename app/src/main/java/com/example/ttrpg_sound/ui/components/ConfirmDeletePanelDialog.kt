@@ -5,18 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.example.ttrpg_sound.R
 
-/**
- * Diálogo de confirmación antes de borrar un panel.
- *
- * El borrado de un panel es destructivo e irreversible (elimina el panel
- * y todos sus botones por CASCADE en Room, y hace unload de sus soundIds).
- * Un paso de confirmación explícito evita borrados accidentales.
- *
- * @param panelName  Nombre del panel a borrar, mostrado en el mensaje.
- * @param onConfirm  El usuario confirmó el borrado.
- * @param onDismiss  El usuario canceló o cerró el diálogo.
- */
 @Composable
 fun ConfirmDeletePanelDialog(
     panelName: String,
@@ -25,27 +16,24 @@ fun ConfirmDeletePanelDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Borrar panel") },
+        title = { Text(stringResource(R.string.dialog_delete_panel_title)) },
         text  = {
             Text(
-                text  = "¿Estás seguro de que quieres borrar el panel \"$panelName\"? " +
-                        "Se eliminarán todos sus botones de sonido.",
+                text  = stringResource(R.string.dialog_delete_panel_message, panelName),
                 style = MaterialTheme.typography.bodyMedium
             )
         },
         confirmButton = {
-            // Botón de confirmación en color error para reforzar que es
-            // una acción destructiva e irreversible.
             TextButton(onClick = onConfirm) {
                 Text(
-                    text  = "Borrar",
+                    text  = stringResource(R.string.dialog_delete_confirm),
                     color = MaterialTheme.colorScheme.error
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

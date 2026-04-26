@@ -9,93 +9,93 @@
     <!-- =====================================================================
          TopAppBar
          ===================================================================== -->
-    <string name="cd_open_panel_menu">Abrir menú de paneles</string>
-    <string name="cd_settings">Ajustes</string>
+    <string name="cd_open_panel_menu">Open panels menu</string>
+    <string name="cd_settings">Settings</string>
 
     <!-- =====================================================================
          Botones flotantes (FAB)
          ===================================================================== -->
-    <string name="cd_enter_delete_mode">Activar modo borrado</string>
-    <string name="cd_exit_delete_mode">Salir del modo borrado</string>
-    <string name="cd_add_sound_button">Añadir botón de sonido</string>
+    <string name="cd_enter_delete_mode">Activate delete mode</string>
+    <string name="cd_exit_delete_mode">Exit delete mode</string>
+    <string name="cd_add_sound_button">Add sound button</string>
 
     <!-- =====================================================================
          Estados vacíos
          ===================================================================== -->
-    <string name="empty_no_panels">Abre el menú ≡ y crea tu primer panel</string>
-    <string name="empty_no_buttons">Añade sonidos con el botón +</string>
+    <string name="empty_no_panels">Open the ≡ menu and create your first panel!</string>
+    <string name="empty_no_buttons">Add button sounds with the + button!</string>
 
     <!-- =====================================================================
          Pantalla de carga
          ===================================================================== -->
-    <string name="loading_sounds">Cargando sonidos…</string>
+    <string name="loading_sounds">Loading sounds …</string>
 
     <!-- =====================================================================
          Drawer de paneles
          ===================================================================== -->
-    <string name="drawer_panels_title">Paneles</string>
-    <string name="drawer_new_panel">Nuevo panel</string>
-    <string name="drawer_delete_panels">Borrar paneles</string>
-    <string name="drawer_cancel_delete">Cancelar borrado</string>
+    <string name="drawer_panels_title">Panels</string>
+    <string name="drawer_new_panel">New panel</string>
+    <string name="drawer_delete_panels">Delete panels</string>
+    <string name="drawer_cancel_delete">Stop deleting panels</string>
     <!-- %1$s = nombre del panel -->
-    <string name="cd_delete_panel">Borrar panel %1$s</string>
+    <string name="cd_delete_panel">Delete the panel %1$s</string>
 
     <!-- =====================================================================
          Diálogo: nuevo botón de sonido
          ===================================================================== -->
-    <string name="dialog_new_button_title">Nuevo botón de sonido</string>
-    <string name="dialog_new_button_label">Nombre del sonido</string>
-    <string name="dialog_new_button_placeholder">Ej: Espadas chocando</string>
+    <string name="dialog_new_button_title">New sound button</string>
+    <string name="dialog_new_button_label">Name of the sound</string>
+    <string name="dialog_new_button_placeholder">Ex: Clashing swords</string>
 
     <!-- =====================================================================
          Diálogo: nuevo panel
          ===================================================================== -->
-    <string name="dialog_new_panel_title">Nuevo panel</string>
-    <string name="dialog_new_panel_label">Nombre del panel</string>
-    <string name="dialog_new_panel_placeholder">Ej: Taberna, Dungeon…</string>
+    <string name="dialog_new_panel_title">New panel</string>
+    <string name="dialog_new_panel_label">Name of the panel</string>
+    <string name="dialog_new_panel_placeholder">Ej: Tabern, Combat…</string>
     <!-- %1$d = número máximo de caracteres -->
-    <string name="dialog_max_chars">Máximo %1$d caracteres</string>
+    <string name="dialog_max_chars">Maximum caracter number %1$d </string>
 
     <!-- =====================================================================
          Diálogo: confirmar borrado de panel
          ===================================================================== -->
-    <string name="dialog_delete_panel_title">Borrar panel</string>
+    <string name="dialog_delete_panel_title">Delete panel</string>
     <!-- %1$s = nombre del panel -->
-    <string name="dialog_delete_panel_message">¿Estás seguro de que quieres borrar el panel \"%1$s\"? Se eliminarán todos sus botones de sonido.</string>
-    <string name="dialog_delete_confirm">Borrar</string>
+    <string name="dialog_delete_panel_message">¿Are you sure you want to delete the panel \"%1$s\"? All buttons will be deleted too.</string>
+    <string name="dialog_delete_confirm">Delete</string>
 
     <!-- =====================================================================
          Botones de acción comunes
          ===================================================================== -->
-    <string name="action_create">Crear</string>
-    <string name="action_cancel">Cancelar</string>
+    <string name="action_create">Create</string>
+    <string name="action_cancel">Cancel</string>
 
     <!-- =====================================================================
          Tarjeta de botón de sonido (SoundButtonCard)
          ===================================================================== -->
-    <string name="cd_no_audio">No tiene audio asignado</string>
+    <string name="cd_no_audio">This button does not have audio asigned.</string>
     <!-- %1$s = nombre del botón -->
-    <string name="cd_delete_button">Eliminar %1$s</string>
-    <string name="menu_change_audio">Cambiar sonido</string>
-    <string name="menu_delete">Eliminar</string>
+    <string name="cd_delete_button">Delete button %1$s</string>
+    <string name="menu_change_audio">Change sound</string>
+    <string name="menu_delete">Delete</string>
 
     <!-- =====================================================================
          Ajustes
          ===================================================================== -->
-    <string name="settings_title">Ajustes</string>
-    <string name="settings_rounded_corners">Esquinas redondeadas</string>
-    <string name="settings_rounded_corners_subtitle">Afecta a botones, tarjetas y diálogos</string>
-    <string name="settings_color_scheme">Esquema de color</string>
-    <string name="settings_language">Idioma</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_rounded_corners">Rounded corners</string>
+    <string name="settings_rounded_corners_subtitle">Affects the buttons, cards and dialogs</string>
+    <string name="settings_color_scheme">Color scheme</string>
+    <string name="settings_language">Language</string>
 
     <!-- =====================================================================
          Nombres de esquemas de color
          ===================================================================== -->
-    <string name="scheme_default">Por defecto</string>
-    <string name="scheme_dark">Oscuro</string>
-    <string name="scheme_mage">Mago</string>
-    <string name="scheme_vampire">Vampiro</string>
-    <string name="scheme_forest">Bosque</string>
+    <string name="scheme_default">By default</string>
+    <string name="scheme_dark">Dark</string>
+    <string name="scheme_mage">Wizard</string>
+    <string name="scheme_vampire">Vampire</string>
+    <string name="scheme_forest">Forest</string>
 
     <!-- =====================================================================
          Nombres de idiomas

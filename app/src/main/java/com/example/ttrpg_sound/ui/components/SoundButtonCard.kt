@@ -1,8 +1,5 @@
 package com.example.ttrpg_sound.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -12,10 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,26 +25,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.ttrpg_sound.R
 import com.example.ttrpg_sound.data.model.SoundButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 
-/**
- * Tarjeta de botón de sonido con soporte para modo borrado.
- *
- * Cuando [isDeleteMode] es false → comportamiento normal:
- *   - Pulsación corta  → reproduce el sonido
- *   - Pulsación larga  → menú contextual (cambiar sonido, eliminar)
- *
- * Cuando [isDeleteMode] es true → modo borrado:
- *   - La X aparece en la esquina superior izquierda con animación.
- *   - Pulsación corta sobre la tarjeta → no hace nada (evita reproducir
- *     accidentalmente mientras el usuario intenta borrar).
- *   - Pulsación sobre la X → llama a [onDelete].
- *   - El menú contextual no aparece (pulsación larga desactivada).
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SoundButtonCard(
@@ -63,27 +47,20 @@ fun SoundButtonCard(
         modifier = modifier
             .aspectRatio(1f)
             .combinedClickable(
-                onClick = {
-                    if (!isDeleteMode) onClick()
-                    // En modo borrado, la pulsación sobre la tarjeta no hace nada.
-                    // El único punto de interacción es la X.
-                },
-                onLongClick = {
-                    if (!isDeleteMode) menuExpanded = true
-                }
+                onClick     = { if (!isDeleteMode) onClick() },
+                onLongClick = { if (!isDeleteMode) menuExpanded = true }
             ),
-        colors = CardDefaults.cardColors(
+        colors    = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
+            modifier         = Modifier
                 .fillMaxSize()
                 .padding(8.dp)
         ) {
-            // Nombre del botón
             Text(
                 text      = button.name,
                 style     = MaterialTheme.typography.labelLarge,
@@ -91,11 +68,11 @@ fun SoundButtonCard(
                 color     = MaterialTheme.colorScheme.onPrimaryContainer
             )
 
-            // Indicador de audio no asignado (esquina superior derecha)
+            // Aviso: botón sin audio asignado
             if (button.soundUri == null) {
                 Icon(
                     imageVector        = Icons.Default.Warning,
-                    contentDescription = "No tiene audio asignado",
+                    contentDescription = stringResource(R.string.cd_no_audio),
                     tint               = MaterialTheme.colorScheme.primary,
                     modifier           = Modifier
                         .size(14.dp)
@@ -103,13 +80,11 @@ fun SoundButtonCard(
                 )
             }
 
-            // X de borrado (esquina superior izquierda)
-            // AnimatedVisibility hace que aparezca y desaparezca con un
-            // fadeIn/fadeOut suave al entrar y salir del modo borrado.
+            // X de borrado con animación
             androidx.compose.animation.AnimatedVisibility(
-                visible = isDeleteMode,
-                enter   = fadeIn(),
-                exit    = fadeOut(),
+                visible  = isDeleteMode,
+                enter    = androidx.compose.animation.fadeIn(),
+                exit     = androidx.compose.animation.fadeOut(),
                 modifier = Modifier.align(Alignment.TopStart)
             ) {
                 IconButton(
@@ -118,27 +93,27 @@ fun SoundButtonCard(
                 ) {
                     Icon(
                         imageVector        = Icons.Default.Close,
-                        contentDescription = "Eliminar ${button.name}",
+                        contentDescription = stringResource(R.string.cd_delete_button, button.name),
                         tint               = MaterialTheme.colorScheme.error,
                         modifier           = Modifier.size(16.dp)
                     )
                 }
             }
 
-            // Menú contextual (solo en modo normal)
+            // Menú contextual
             DropdownMenu(
                 expanded         = menuExpanded && !isDeleteMode,
                 onDismissRequest = { menuExpanded = false }
             ) {
                 DropdownMenuItem(
-                    text    = { Text("Cambiar sonido") },
+                    text    = { Text(stringResource(R.string.menu_change_audio)) },
                     onClick = {
                         menuExpanded = false
                         onChangeAudio()
                     }
                 )
                 DropdownMenuItem(
-                    text    = { Text("Eliminar") },
+                    text    = { Text(stringResource(R.string.menu_delete)) },
                     onClick = {
                         menuExpanded = false
                         onDelete()

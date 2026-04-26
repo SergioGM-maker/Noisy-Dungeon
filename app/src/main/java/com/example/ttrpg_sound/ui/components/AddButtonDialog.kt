@@ -9,17 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.example.ttrpg_sound.R
 
-/**
- * Diálogo modal para crear un nuevo botón de sonido.
- *
- * El estado del campo de texto ([text]) es local a este diálogo —
- * no necesita subir al ViewModel porque es un detalle de la UI
- * que solo existe mientras el diálogo está abierto.
- *
- * @param onConfirm  Se llama con el nombre introducido si el usuario confirma.
- * @param onDismiss  Se llama si el usuario cancela o cierra el diálogo.
- */
 @Composable
 fun AddButtonDialog(
     onConfirm: (name: String) -> Unit,
@@ -29,14 +21,14 @@ fun AddButtonDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuevo botón de sonido") },
-        text = {
+        title   = { Text(stringResource(R.string.dialog_new_button_title)) },
+        text    = {
             OutlinedTextField(
-                value = text,
+                value         = text,
                 onValueChange = { text = it },
-                label = { Text("Nombre del sonido") },
-                placeholder = { Text("Ej: Espadas chocando") },
-                singleLine = true
+                label         = { Text(stringResource(R.string.dialog_new_button_label)) },
+                placeholder   = { Text(stringResource(R.string.dialog_new_button_placeholder)) },
+                singleLine    = true
             )
         },
         confirmButton = {
@@ -44,12 +36,12 @@ fun AddButtonDialog(
                 onClick = { onConfirm(text) },
                 enabled = text.isNotBlank()
             ) {
-                Text("Crear")
+                Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

@@ -66,10 +66,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ttrpg_sound.R
 import com.example.ttrpg_sound.data.model.SoundPanel
 import com.example.ttrpg_sound.ui.components.AddButtonDialog
 import com.example.ttrpg_sound.ui.components.AddPanelDialog
@@ -137,13 +139,19 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                 TopAppBar(
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Abrir menú de paneles")
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = stringResource(R.string.cd_open_panel_menu)
+                            )
                         }
                     },
-                    title   = { Text(currentPanel?.name ?: "TTRPG Sound") },
+                    title   = { Text(currentPanel?.name ?: stringResource(R.string.app_name)) },
                     actions = {
                         IconButton(onClick = { showSettingsSheet = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.cd_settings)
+                            )
                         }
                     }
                 )
@@ -161,8 +169,10 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                         ) {
                             Icon(
                                 imageVector        = Icons.Default.Delete,
-                                contentDescription = if (isDeleteMode) "Salir del modo borrado"
-                                                     else "Activar modo borrado",
+                                contentDescription = stringResource(
+                                    if (isDeleteMode) R.string.cd_exit_delete_mode
+                                    else              R.string.cd_enter_delete_mode
+                                ),
                                 tint = if (isDeleteMode) MaterialTheme.colorScheme.onErrorContainer
                                        else MaterialTheme.colorScheme.onSurface
                             )
@@ -174,7 +184,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                         ) {
                             Icon(
                                 imageVector        = Icons.Default.Add,
-                                contentDescription = "Añadir botón de sonido",
+                                contentDescription = stringResource(R.string.cd_add_sound_button),
                                 tint = if (isDeleteMode) MaterialTheme.colorScheme.onSurfaceVariant
                                        else MaterialTheme.colorScheme.onSurface
                             )
@@ -189,8 +199,10 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                 if (buttons.isEmpty() && !isLoadingSounds) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            text  = if (panels.isEmpty()) "Abre el menú ≡ y crea tu primer panel"
-                                    else "Añade sonidos con el botón +",
+                            text  = stringResource(
+                                if (panels.isEmpty()) R.string.empty_no_panels
+                                else                  R.string.empty_no_buttons
+                            ),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -230,7 +242,7 @@ fun HomeScreen(viewModel: SoundPanelViewModel = viewModel()) {
                             CircularProgressIndicator()
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                text  = "Cargando sonidos…",
+                                text  = stringResource(R.string.loading_sounds),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -305,7 +317,7 @@ private fun SettingsSheetContent(
             .padding(horizontal = 24.dp, vertical = 8.dp)
     ) {
         Text(
-            text       = "Ajustes",
+            text       = stringResource(R.string.settings_title),
             style      = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier   = Modifier.padding(bottom = 16.dp)
@@ -317,14 +329,15 @@ private fun SettingsSheetContent(
         Row(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier              = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
+            modifier              = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Esquinas redondeadas", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text  = "Afecta a botones, tarjetas y diálogos",
+                    stringResource(R.string.settings_rounded_corners),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    stringResource(R.string.settings_rounded_corners_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -342,7 +355,7 @@ private fun SettingsSheetContent(
 
         // --- Esquema de color ---
         Text(
-            text     = "Esquema de color",
+            stringResource(R.string.settings_color_scheme),
             style    = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 8.dp)
         )
@@ -352,16 +365,14 @@ private fun SettingsSheetContent(
             modifier         = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value         = appColorScheme.displayName,
+                value         = stringResource(appColorScheme.nameRes),
                 onValueChange = {},
                 readOnly      = true,
                 trailingIcon  = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorDropdownExpanded)
                 },
                 leadingIcon   = { SchemeColorPreview(scheme = appColorScheme) },
-                modifier      = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
+                modifier      = Modifier.menuAnchor().fillMaxWidth()
             )
             ExposedDropdownMenu(
                 expanded         = colorDropdownExpanded,
@@ -373,7 +384,7 @@ private fun SettingsSheetContent(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 SchemeColorPreview(scheme = scheme)
                                 Spacer(Modifier.width(12.dp))
-                                Text(scheme.displayName)
+                                Text(stringResource(scheme.nameRes))
                             }
                         },
                         onClick = {
@@ -390,11 +401,8 @@ private fun SettingsSheetContent(
         Spacer(Modifier.height(12.dp))
 
         // --- Idioma ---
-        // Por ahora es un dropdown dummy: cambia el estado pero no
-        // reemplaza los strings de la UI todavía. Eso se implementará
-        // en el siguiente paso con el sistema de localización de Android.
         Text(
-            text     = "Idioma",
+            stringResource(R.string.settings_language),
             style    = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 8.dp)
         )
@@ -404,15 +412,13 @@ private fun SettingsSheetContent(
             modifier         = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value         = appLanguage.displayName,
+                value         = stringResource(appLanguage.nameRes),
                 onValueChange = {},
                 readOnly      = true,
                 trailingIcon  = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageDropdownExpanded)
                 },
-                modifier      = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
+                modifier      = Modifier.menuAnchor().fillMaxWidth()
             )
             ExposedDropdownMenu(
                 expanded         = languageDropdownExpanded,
@@ -420,7 +426,7 @@ private fun SettingsSheetContent(
             ) {
                 AppLanguage.entries.forEach { language ->
                     DropdownMenuItem(
-                        text    = { Text(language.displayName) },
+                        text    = { Text(stringResource(language.nameRes)) },
                         onClick = {
                             onSelectLanguage(language)
                             languageDropdownExpanded = false
@@ -434,10 +440,6 @@ private fun SettingsSheetContent(
     }
 }
 
-/**
- * Dos círculos de colores que representan visualmente un esquema:
- * el primero muestra el color de botones, el segundo el fondo.
- */
 @Composable
 private fun SchemeColorPreview(scheme: AppColorScheme) {
     val cs = buildColorScheme(scheme)
@@ -491,7 +493,7 @@ private fun PanelDrawerContent(
                 .padding(vertical = 8.dp)
         ) {
             Text(
-                text       = "Paneles",
+                text       = stringResource(R.string.drawer_panels_title),
                 style      = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier   = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
@@ -519,8 +521,10 @@ private fun PanelDrawerContent(
                         ) {
                             Icon(
                                 imageVector        = Icons.Default.Close,
-                                contentDescription = "Borrar panel ${panel.name}",
-                                tint               = MaterialTheme.colorScheme.error
+                                contentDescription = stringResource(
+                                    R.string.cd_delete_panel, panel.name
+                                ),
+                                tint = MaterialTheme.colorScheme.error
                             )
                         }
                     }
@@ -532,7 +536,7 @@ private fun PanelDrawerContent(
             Spacer(Modifier.height(8.dp))
 
             NavigationDrawerItem(
-                label    = { Text("Nuevo panel") },
+                label    = { Text(stringResource(R.string.drawer_new_panel)) },
                 selected = false,
                 onClick  = onAddPanelClicked,
                 icon     = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -541,7 +545,10 @@ private fun PanelDrawerContent(
             NavigationDrawerItem(
                 label    = {
                     Text(
-                        text  = if (isPanelDeleteMode) "Cancelar borrado" else "Borrar paneles",
+                        text  = stringResource(
+                            if (isPanelDeleteMode) R.string.drawer_cancel_delete
+                            else                   R.string.drawer_delete_panels
+                        ),
                         color = if (isPanelDeleteMode) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -1,6 +1,7 @@
 package com.example.ttrpg_sound.ui.theme
 
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
@@ -14,55 +15,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.ttrpg_sound.R
 
 // =============================================================================
 // Esquemas de color
 // =============================================================================
 
 /**
- * Enum que representa los esquemas de color disponibles en la app.
+ * Enum centralizado en Theme.kt porque es un concepto de tema, no de ViewModel.
  *
- * [displayName] es el nombre que ve el usuario en el dropdown.
- *
- * Cada valor del enum corresponde a un conjunto de tres colores definidos
- * en Color.kt: color de botones, fondo, y texto. La función [buildColorScheme]
- * los convierte en un [ColorScheme] completo de Material3.
- *
- * ¿Por qué un enum y no una sealed class?
- * Porque los esquemas son un conjunto cerrado y finito de opciones — no
- * necesitan datos adicionales ni subtipos. El enum es más simple, serializable
- * directamente, y permite iterar con `AppColorScheme.entries` en el dropdown.
+ * [nameRes] apunta a strings.xml para que el nombre sea localizable.
+ * HomeScreen lo lee con stringResource(scheme.nameRes).
+ * buildColorScheme() lo usa para construir el ColorScheme de Material3.
  */
-enum class AppColorScheme(val displayName: String) {
-    DEFAULT("Por defecto"),
-    OSCURO("Oscuro"),
-    MAGO("Mago"),
-    VAMPIRO("Vampiro"),
-    BOSQUE("Bosque")
+enum class AppColorScheme(@StringRes val nameRes: Int) {
+    DEFAULT(R.string.scheme_default),
+    OSCURO(R.string.scheme_dark),
+    MAGO(R.string.scheme_mage),
+    VAMPIRO(R.string.scheme_vampire),
+    BOSQUE(R.string.scheme_forest)
 }
 
-/**
- * Construye un [ColorScheme] de Material3 a partir de los tres colores
- * clave de cada esquema de la app.
- *
- * Estrategia: usar [lightColorScheme] o [darkColorScheme] como base
- * (que provee valores razonables para todos los ~30 colores del sistema)
- * y sobreescribir solo los que controlamos explícitamente.
- *
- * Los esquemas con fondo oscuro (todos menos DEFAULT) extienden
- * [darkColorScheme] para que los componentes del sistema (checkboxes,
- * switches, scrollbars) también adopten tonos apropiados para fondo oscuro.
- *
- * Los colores que sobreescribimos en cada esquema:
- *   - [primaryContainer]    → fondo de las tarjetas de botón de sonido
- *   - [onPrimaryContainer]  → texto dentro de las tarjetas
- *   - [background]          → fondo de la pantalla completa
- *   - [surface]             → fondo de Scaffold, drawers, bottom sheets
- *   - [onBackground]        → texto sobre el fondo de pantalla
- *   - [onSurface]           → texto sobre surfaces (topbar, drawer…)
- *   - [surfaceVariant]      → fondo de elementos secundarios (FAB apagado)
- *   - [onSurfaceVariant]    → texto en surfaceVariant
- */
 fun buildColorScheme(scheme: AppColorScheme): ColorScheme {
     return when (scheme) {
         AppColorScheme.DEFAULT -> lightColorScheme(
@@ -74,6 +47,16 @@ fun buildColorScheme(scheme: AppColorScheme): ColorScheme {
             onSurface          = DefaultTextColor,
             surfaceVariant     = Color(0xFFE0E0E0),
             onSurfaceVariant   = Color(0xFF616161)
+        )
+        AppColorScheme.OSCURO -> darkColorScheme(
+            primaryContainer   = OscuroButtonColor,
+            onPrimaryContainer = OscuroTextColor,
+            background         = OscuroBackground,
+            surface            = OscuroBackground,
+            onBackground       = OscuroTextColor,
+            onSurface          = OscuroTextColor,
+            surfaceVariant     = Color(0xFF1A1A1A),
+            onSurfaceVariant   = OscuroTextColor
         )
         AppColorScheme.MAGO -> darkColorScheme(
             primaryContainer   = MagoButtonColor,
@@ -105,16 +88,6 @@ fun buildColorScheme(scheme: AppColorScheme): ColorScheme {
             surfaceVariant     = Color(0xFF2E7D32),
             onSurfaceVariant   = Color(0xFFC8E6C9)
         )
-        AppColorScheme.OSCURO -> darkColorScheme(
-            primaryContainer   = OscuroButtonColor,
-            onPrimaryContainer = OscuroTextColor,
-            background         = OscuroBackground,
-            surface            = OscuroBackground,
-            onBackground       = OscuroTextColor,
-            onSurface          = OscuroTextColor,
-            surfaceVariant     = Color(0xFF4E342E),
-            onSurfaceVariant   = OscuroTextColor
-        )
     }
 }
 
@@ -142,17 +115,6 @@ private val SharpShapes = Shapes(
 // Tema principal
 // =============================================================================
 
-/**
- * Tema central de la aplicación.
- *
- * Cuando [appColorScheme] es [AppColorScheme.DEFAULT] y el dispositivo
- * soporta Dynamic Color (Android 12+), se usa el color dinámico del sistema.
- * En cualquier otro esquema, Dynamic Color se desactiva y se aplica
- * el [ColorScheme] construido por [buildColorScheme].
- *
- * @param appColorScheme    Esquema de color elegido por el usuario.
- * @param useRoundedCorners Si true, esquinas redondeadas; si false, afiladas.
- */
 @Composable
 fun TTRPGSoundTheme(
     appColorScheme:    AppColorScheme = AppColorScheme.DEFAULT,
@@ -162,7 +124,6 @@ fun TTRPGSoundTheme(
     val darkTheme = isSystemInDarkTheme()
 
     val colorScheme = when {
-        // Dynamic color solo en el esquema por defecto
         appColorScheme == AppColorScheme.DEFAULT &&
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
