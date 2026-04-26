@@ -1,2 +1,25 @@
+# Gradle
+*.iml
+.gradle
+/local.properties
 /build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android Studio — carpeta completa ignorada
 .idea/
+
+# Builds y artefactos
+app/build/
+app/release/
+*.apk
+*.aab
+
+# Keystore — nunca subir
+*.jks
+*.keystore
+
+# macOS
+.DS_Store
