@@ -1,4 +1,25 @@
-Aplicacion para gestionar el sonido en una mesa de rol.
+# Noisy Dungeon 🎲
+
+Aplicación Android para gestionar sonidos en partidas de rol (TTRPG).
+
+## Instalación
+
+### Requisitos
+- Android 7.0 (API 24) o superior
+
+### Pasos
+
+1. Descarga el APK desde el botón de abajo o desde
+   [Releases](https://github.com/SergioGM-maker/Noisy-Dungeon/releases/latest)
+
+2. Abre el fichero descargado en tu Android
+
+3. Si Android te avisa de que la app es de una fuente desconocida,
+   ve a **Ajustes → Permitir** para ese gestor de ficheros o navegador
+
+4. Pulsa **Instalar**
+
+[⬇️ Descargar APK](https://github.com/SergioGM-maker/Noisy-Dungeon/releases/latest/download/app-release.apk)
 
 
 Hecho: 
@@ -21,6 +42,8 @@ Hecho:
 
 2.2 Hacer que tome el idioma automaticamente del OS (voy a conservar el selector en ajustes porque ya lo he hecho)
 
+2.3 Guia de instalación
+
 TODO:
 
-2.3 Guia de instalación
+3.0 Gestionar vulnerabilidades.
